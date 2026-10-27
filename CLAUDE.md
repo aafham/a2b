@@ -9,12 +9,25 @@ The repository is public. Never push to `main` directly.
 - Put each change on its own `claude/<short-topic>` branch, one change per commit, with a message that says what
   and why.
 - Before opening the pull request: `npm test` passes, and anything visual or on the road has been tried in a browser.
-- Open a pull request against `main` that fills in `.github/pull_request_template.md`. The owner reviews and merges.
+- Open a pull request against `main` that fills in `.github/pull_request_template.md`.
 - Tell the owner in the chat what the pull request changes.
+
+## Reviewing and merging
+
+The owner has handed review and merging to their own Claude session (signed "Thaqif's Claude"). Other contributors'
+agents open pull requests but don't merge them.
+
+- Review every pull request, the owner's and Claude's own included: read the whole diff, run `npm test`, and try
+  anything visual or on the road in a browser.
+- Merge (with a merge commit, as before) once the review has no open findings and the checks pass, then deploy
+  (below) and tell the owner what went live.
+- Hand these to the owner instead of merging: changes to the licence, `CONTRIBUTING.md` or this file; database
+  migrations; anything that collects new personal data or changes the privacy notice; and anything that adds a paid
+  service, a new API key or new hosting.
 
 ## Deploying
 
-- The live app (https://a2b-beta.pages.dev) only ever runs what's on `main`. Deploy only after the owner has merged:
+- The live app (https://a2b-beta.pages.dev) only ever runs what's on `main`. Deploy only after a pull request is merged:
   pull `main`, run `npm test`, then `npm run deploy`.
 - The shop search files in `public/places/` aren't in git. Before deploying from a fresh checkout, build them
   (`pip install duckdb && npm run places`), or the deploy removes shop search from the live app. The predeploy
@@ -27,4 +40,4 @@ The repository is public. Never push to `main` directly.
 
 A scheduled task checks for a new Overture Maps release and rebuilds the speed camera list each month. When
 something changed, it rebuilds the data on a `claude/map-data-<release>` branch, opens a pull request, and
-reports back; it deploys after the owner merges.
+reports back; it deploys after the pull request is merged.
