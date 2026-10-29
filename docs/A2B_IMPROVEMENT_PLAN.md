@@ -134,10 +134,15 @@ another PR or a bulk merge recommendation. Individual PR branches remain focused
 
 Resume order after the usage limit resets and Afham asks to continue:
 
-1. Fetch main and all relevant PRs again; inspect owner comments. Do not assume these heads/statuses persist.
+1. Before choosing any new work, inventory **all current PRs** (open, newly merged and closed), read new
+   diffs/reviews/dependencies, fetch current main, reread changed project rules and inspect local user changes.
+   Inspect the current A2B Beta website at https://a2b-beta.pages.dev/ as well as the current repository;
+   keep live observation read-only and use local/synthetic fixtures for testing. Do not assume today's
+   heads, features, defects or priorities persist. Afham explicitly reiterated this requirement at the stop checkpoint.
 2. Address review findings/conflicts in the submitted PRs first. Preserve the integration resolution notes
    in A2B_VERIFICATION.md; do not recreate any of the already submitted changes.
-3. Then finish hung-source search and server enrichment deadlines (M2-D), with partial-result tests.
+3. Only after that fresh review, select still-relevant work that is not already covered by someone else's PR.
+   The provisional next item is hung-source search and server enrichment deadlines (M2-D), with partial-result tests.
 4. Then extend offline prefetch visibly on #15 if still open (M3-B/C), followed by update/reconnect (M3-D).
 5. M4 data/backend, M5 broader accessibility/BM, M6 remaining product flows and M7 CI/performance/readiness
    remain future work, not implemented milestones.
