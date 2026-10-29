@@ -49,6 +49,9 @@ function app() {
     trail: [], offTrail: [], tollsSpoken: new Set(), camerasWarned: new Set(), alerted: new Map(),
     driveStarted: 0, share: null, wakeLock: null, parkingFor: null, onRoute: [], follow: true,
     tripSheet: { set() {} }, local: { get: () => false }, guide: null,
+    // GPS quality/estimate behavior is tested by M1; these ownership scenarios assume a fresh real fix.
+    isFreshGpsFix: () => true,
+    tunnelEpisode: { active: false, exhausted: false, suspended: false, suspend() { this.suspended = true; } },
     Navigator: class { constructor(r, options) { this.route = r; this.options = options; this.spoken = new Set(); } },
     TrainGuide: class { constructor(trip) { this.trip = trip; } }, rideNow: () => Date.now(), rideTick: () => {},
     api: (path, options) => { const d = deferred(); requests.push({ ...d, path, ...options }); return d.promise; },
@@ -64,7 +67,8 @@ function app() {
     'renderRouteOptions', 'renderPeekSummary', 'fitRoutes', 'renderTransit', 'resumeStart', 'fitTo', 'syncVehicle', 'schedulePois',
     'drawPois', 'drawTrail', 'startTunnelWatch', 'renderStopMenu', 'saveTrip', 'renderSearchHome', 'computeOnRoute', 'loadReports',
     'requestWakeLock', 'driveTick', 'driveCamera', 'stopSimulation', 'stopTunnelWatch', 'discardProbeBuffer', 'clearParkingPins',
-    'forgetTrip', 'updateCheckpoint', 'keepTrail', 'pushShare', 'noteReplan']) context[name] = () => {};
+    'forgetTrip', 'updateCheckpoint', 'keepTrail', 'pushShare', 'noteReplan',
+    'drawDriveLine', 'drawManeuverArrow', 'renderTunnelStatus']) context[name] = () => {};
   const functions = ['openPreview', 'showTransit', 'routeRequest', 'requestRoutes', 'reroute', 'resetTripRequests', 'backToBrowse',
     'startDrive', 'endDrive', 'cancelLaterRequests', 'resetTravel', 'replanRide', 'updateLaterTrains', 'closeScreen'];
   for (const name of functions) {
