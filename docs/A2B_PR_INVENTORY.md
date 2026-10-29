@@ -1,6 +1,6 @@
 # A2B pull request inventory
 
-Snapshot: 29 October 2026, refreshed through PR #45. Initial audit covered #1–#40; #41 appeared and #11 changed before M2. #42–#45 are this work.
+Snapshot: 29 October 2026, refreshed through PR #50. Initial audit covered #1–#40; #41 appeared and #11 changed before M2. #42–#50 are this batch.
 
 | PR | Status | Title |
 |---|---|---|
@@ -49,3 +49,8 @@ Snapshot: 29 October 2026, refreshed through PR #45. Initial audit covered #1–
 | [#43](https://github.com/thaqif0709/a2b/pull/43) | OPEN | Make recovery atomic and rotate recovery codes |
 | [#44](https://github.com/thaqif0709/a2b/pull/44) | OPEN | Bound GPS estimates and require real fixes for arrival |
 | [#45](https://github.com/thaqif0709/a2b/pull/45) | OPEN | Safely render place names and mask password changes |
+| [#46](https://github.com/thaqif0709/a2b/pull/46) | OPEN | Track phased A2B audit, dependencies and verified changes |
+| [#47](https://github.com/thaqif0709/a2b/pull/47) | OPEN | Keep search results current and preserve partial matches |
+| [#48](https://github.com/thaqif0709/a2b/pull/48) | OPEN | Scope route requests to the current preview and trip |
+| [#49](https://github.com/thaqif0709/a2b/pull/49) | OPEN | Keep one location watcher and clarify GPS recovery states |
+| [#50](https://github.com/thaqif0709/a2b/pull/50) | OPEN | Precache and verify the complete frontend module graph |

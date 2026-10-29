@@ -52,8 +52,9 @@ Status is a dated observation and must be refreshed before the next theme.
 | #31 | Open 3D junction view. Review inferred guidance and reduced motion rather than add another junction UI. |
 
 Merged features include train and walk (#20, superseding #10/#19), scheduled charger refresh (#21),
-traffic opt-in (#28), tunnels (#30), unnamed map POIs (#32), category fixes (#34), guest recents and
-keyboard changes (#36, incorporating #35), the integration fixes (#38), and feedback close/reopen (#40).
+traffic opt-in (#6), category search (#18), expressway exit signs (#28), tunnels (#30), unnamed map POIs
+(#32), train guidance (#34), guest recents and keyboard changes (#36, incorporating #35), integration
+fixes (#38), and feedback close/reopen (#40).
 Main already has origin selection, train alternatives/timing, trip resume, POI categories and destination
 deep links. Malay search synonyms are not a Malay interface. #38 fixed a duplicate top-level declaration
 which unit tests had missed: module syntax and browser smoke coverage are necessary.
@@ -110,13 +111,39 @@ cost effect, approach and acceptance so a maintainer can reproduce the next step
 | M1-A trusted access | `claude/trusted-account-access`, `99ed819`; implementation/test complete, owner ID provisioning pending | [Draft #42](https://github.com/thaqif0709/a2b/pull/42), 180 unit/API tests |
 | M1-B recovery + malformed cookie | `claude/atomic-account-recovery`, `f397fc2`; implementation/test complete, local D1 validated | [Draft #43](https://github.com/thaqif0709/a2b/pull/43), 185 unit/API tests |
 | M1-C safe route text/password form | `claude/safe-account-forms`, `ecf1ba7`; implementation/test complete | [Draft #45](https://github.com/thaqif0709/a2b/pull/45), 179 unit/API + 10 Chromium/WebKit component cases |
-| M1-D GPS estimate episode/arrival | `claude/bounded-gps-estimates`, `8895c07`; implementation/test complete, physical GPS not tested | [Draft #44](https://github.com/thaqif0709/a2b/pull/44), 189 unit/API cases |
-| M2 search, routes, geolocation | Separate clean-main branches under implementation/review | No claim of combined test success yet |
-| M3 shell graph | Missing imports reproduced; graph regression now passes in isolated branch | Browser cold-start proof in progress |
+| M1-D GPS estimate episode/arrival | `claude/bounded-gps-estimates`, `13c64ad`; includes route-replacement suspension and bounded sharing retries; physical GPS not tested | [Draft #44](https://github.com/thaqif0709/a2b/pull/44), 199 unit/API cases + GPS chip component smoke |
+| M2-A / partial M2-D search | `claude/search-request-lifecycle`, `8fb11d7`; stale results and rejected-provider partial results fixed | [Draft #47](https://github.com/thaqif0709/a2b/pull/47), 199 unit/API tests + Chrome/WebKit component smoke; hung-source deadlines remain queued |
+| M2-B routes | `claude/route-request-lifecycle`, `c2d389e`; input/trip ownership and browser deadline implemented | [Draft #48](https://github.com/thaqif0709/a2b/pull/48), 188 unit/API tests + Edge synthetic preview; server enrichment deadline remains queued |
+| M2-C geolocation | `claude/geolocation-lifecycle`, `31a98cd`; one watcher/retry and distinct states | [Draft #49](https://github.com/thaqif0709/a2b/pull/49), 185 unit/API tests + Chrome component smoke |
+| M3-A shell graph | `claude/offline-shell-graph`, `fa2fd59`; both missing imports precached and guarded | [Draft #50](https://github.com/thaqif0709/a2b/pull/50), 181 unit/API tests + actual cold offline browser boot |
 
 M1 rows marked in progress above refer to the overall review/rollout gate: code is complete in the
 listed PRs, not deployed. They are not claims that every broader account/navigation issue is fixed.
-M4–M7 overall remain queued except the explicitly recorded browser testing/design baseline.
+M2-D remains partial: failed-source results survive, but hung search sources and server enrichment still
+need deadlines. M3-B/C/D (trip prefetch budgets/cancellation, corridor/source completeness and update
+recovery), M4–M7 overall remain queued except the explicitly recorded browser testing/design baseline.
+
+### Stop/resume checkpoint
+
+Afham requested stopping after the work already in progress, to conserve usage. No new theme or PR is
+to be started in this batch. Nine draft PRs (#42–#50) are submitted; none is merged or deployed by this work.
+The integrated local verification branch `claude/phase-integration-check` at
+`cc15c1ccde36b9955623730ce35a02647b3d3add` passed 243 unit/API tests, 10 Chromium/WebKit component
+tests and the cold offline browser check (27 local modules from SW). It is a test composition, not
+another PR or a bulk merge recommendation. Individual PR branches remain focused on their own themes.
+
+Resume order after the usage limit resets and Afham asks to continue:
+
+1. Fetch main and all relevant PRs again; inspect owner comments. Do not assume these heads/statuses persist.
+2. Address review findings/conflicts in the submitted PRs first. Preserve the integration resolution notes
+   in A2B_VERIFICATION.md; do not recreate any of the already submitted changes.
+3. Then finish hung-source search and server enrichment deadlines (M2-D), with partial-result tests.
+4. Then extend offline prefetch visibly on #15 if still open (M3-B/C), followed by update/reconnect (M3-D).
+5. M4 data/backend, M5 broader accessibility/BM, M6 remaining product flows and M7 CI/performance/readiness
+   remain future work, not implemented milestones.
+
+Additional known sharing boundary: client acknowledgement guards and retry cadence do not serialize
+overlapping server PATCH writes. Versioned/ordered live-sharing updates remain a separate M6 follow-up.
 
 ## Working sequence and boundaries
 
