@@ -18,6 +18,7 @@ Based on upstream `134045a`, refreshed with the open PR list on 29 October 2026.
 - `npm test`: **188 passed**, including nine new request-lifecycle tests. `git diff --check` and JavaScript syntax checks passed.
 - Deferred transport tests execute the production functions from `app.js` with DOM, map and transport stubs. The fake transport deliberately ignores abort. They cover B resolving before A for the same destination with changed origin/preferences; stale transit errors; closing previews; real `endDrive`/`startDrive` calls between old/new reroutes; cancelled/timeout ownership of locks; train replans; closing Leave later; and queued countdown callbacks.
 - API tests cover a stalled response body, external cancellation and an already-aborted signal. Timeout remains distinguishable from an offline error.
+- The orchestration fixture supplies M1's safe loading-text renderer when the branches are combined; it does not bypass request ownership assertions. Safe DOM rendering itself is covered by the separate M1 tests/browser check.
 - Browser check in Edge against a local synthetic API: requested slow Drive then fast Walk; the server returned Walk before Drive, and the Walk preview remained selected after the delayed Drive response. Closure warning remained visible with explicit Go now. No routing provider was called by this fixture; no road test was performed. Browser error log was empty.
 
 ## Boundaries and integration

@@ -56,6 +56,7 @@ function app() {
     clearInterval: (timer) => { if (timer) timer.cancelled = true; }, clearTimeout,
     cumulative: () => [0, 100], el: () => ({}), movingNow: () => null, sheetPadding: () => ({}),
     routeNote: (rs) => rs.closuresIgnored ? 'Closure warning' : '',
+    showRouteLoading: (node, message) => { node.textContent = message; }, // M1 safe text-rendering integration
     toast: (text) => messages.push(text), speak: (text) => messages.push(text),
     addPlace: async () => {}, formatClock: () => '12:00', formatDuration: () => '1 min',
   });
