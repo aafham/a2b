@@ -298,7 +298,8 @@ textarea.field { height: auto; padding: 12px 14px; resize: vertical; font: inher
 .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg-2); border-radius: 12px; padding: 4px; margin-top: 12px; }
 .seg button { height: 40px; border-radius: 9px; font-weight: 600; color: var(--muted); }
 .seg button.on { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }
-.travel-seg { grid-template-columns: repeat(3, 1fr); margin: 4px 0 10px; }
+.travel-seg { grid-template-columns: repeat(4, 1fr); margin: 4px 0 10px; }
+.travel-seg button { padding: 0 2px; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Walking: no speedometer, speed limit, tolls or parking. */
 body.walking #speedo, body.walking #limit, body.walking #toll-chip, body.walking #btn-parking { display: none !important; }
 /* Trips by train (see showTransit in app.js): no Go or Leave later, a link to live times instead. */
@@ -329,11 +330,10 @@ body.walking #speedo, body.walking #limit, body.walking #toll-chip, body.walking
 .ride-peek { display: none; width: 100%; padding: 2px 2px 4px; border: 0; background: none; color: var(--text); font: inherit; font-size: 16px; font-weight: 700; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .ride-peek::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 10px; border-radius: 50%; background: var(--dot, #1c7ed6); vertical-align: 1px; }
 .ride-sheet.closed .ride-peek { display: block; }
-.ride-sheet.closed .ride-stops, .ride-sheet.closed .sheet-actions, .ride-sheet.closed .ride-here-hint, .ride-sheet.closed .ride-eta { display: none; }
+.ride-sheet.closed .ride-stops, .ride-sheet.closed .sheet-actions, .ride-sheet.closed .ride-eta { display: none; }
 .ride-eta { margin: 0 2px 6px; font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 #resume { z-index: 20; }
 #here-confirm { z-index: 21; } /* over the ride's sheet of stops */
-.ride-here-hint { margin: 8px 2px 0; color: var(--muted); font-size: 13px; text-align: center; }
 .ride-stops li[data-k] { cursor: pointer; border-radius: 8px; }
 .ride-stops li[data-k]:active { background: var(--bg-2); }
 /* Tapped once: tap again to say you're there. */
@@ -349,6 +349,16 @@ body.walking #speedo, body.walking #limit, body.walking #toll-chip, body.walking
 .rider svg { width: 20px; height: 20px; }
 .rider.walker { width: 44px; height: 44px; background: none; border: 0; box-shadow: none; color: var(--car, #e23d9b); filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35)); }
 .rider.walker svg { width: 44px; height: 44px; }
+/* Train reports (see trainReports in app.js): a button with the ride's others, what riders reported under the banner,
+   and on a trip's option when planning. */
+.report-round { background: var(--report); }
+.report-round svg { width: 22px; height: 22px; }
+#train-report, #train-report-vote { z-index: 21; }
+.report-grid.train-report-grid { grid-template-columns: repeat(2, 1fr); }
+.train-report-chip { text-align: left; }
+.train-report-chip b { background: var(--tr, #e67700); color: #fff; }
+.t-report { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; font-weight: 700; color: #e67700; }
+.t-report i { width: 8px; height: 8px; border-radius: 50%; background: var(--tr, #e67700); }
 .route-opt.t-opt { flex-wrap: wrap; }
 .t-opt .t-steps { flex-basis: 100%; }
 .t-legs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; }
@@ -670,3 +680,96 @@ body.driving .toast { top: calc(140px + var(--safe-top)); }
 .parking-list .on b { color: var(--accent-text); }
 .p-pin { width: 30px; height: 30px; border-radius: 8px; background: #2f6fde; color: #fff; display: grid; place-items: center; font: 900 17px/1 system-ui, sans-serif; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); cursor: pointer; }
 .trip-dest { cursor: pointer; }
+
+/* ---------- Suggesting a place (public/suggest.js) ---------- */
+/* The pin stays put and the map moves under it; it lifts while the map moves, its point marked by a small dot. */
+.suggest-pin { position: fixed; z-index: 14; width: 36px; height: 46px; transform: translate(-50%, -100%); pointer-events: none; }
+.suggest-pin svg { display: block; width: 36px; height: 46px; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.3)); transition: transform 0.15s ease-out; }
+.suggest-pin i { position: absolute; left: 50%; bottom: -3px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); }
+.suggest-pin.moving svg { transform: translateY(-10px); }
+.was-pin { opacity: 0.45; filter: grayscale(1); }
+#suggest { max-height: 55vh; }
+.suggest-kinds { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.suggest-kinds button { height: 36px; padding: 0 14px; border-radius: 18px; background: var(--bg-2); font-size: 14px; font-weight: 600; color: var(--muted); }
+.suggest-kinds button.on { background: var(--primary); color: var(--primary-ink); }
+.suggest-by { padding-top: 0; }
+.suggest-choices { margin: 4px -16px 0; }
+.wrong-place { display: inline-flex; align-items: center; gap: 6px; height: 30px; margin: 6px 0 2px; padding: 0 12px 0 10px; border-radius: 15px; background: var(--bg-2); color: var(--accent-text); font-size: 13px; font-weight: 600; }
+.wrong-place svg { width: 15px; height: 15px; }
+.add-missing { display: block; margin: 16px auto 0; }
+.place-list li.add-missing-row { padding: 6px 16px 12px; }
+.fb-tabs { margin: 8px 16px 4px; }
+
+/* ---------- Phone on its side ---------- */
+/* A landscape phone is wide but short. The sheets, the turn banner and the trip sheet stack in one column on the
+   left, clear of the camera cut-out (the safe area), and the map, the car and the round buttons get the rest.
+   Sheets are compacted so the route list keeps some room between the header and Go. The map is told about the
+   column too (sideColumn in app.js). */
+@media (orientation: landscape) and (max-height: 540px) {
+  :root {
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --side-x: calc(10px + var(--safe-left));
+    --side-w: clamp(340px, 46vw, 400px);
+    --side-end: calc(var(--side-x) + var(--side-w)); /* where the map starts */
+    --tall: calc(100dvh - 20px - var(--safe-top) - var(--safe-bottom));
+  }
+  .sheet {
+    left: var(--side-x); right: auto; width: var(--side-w); bottom: max(10px, var(--safe-bottom)); border-radius: var(--radius);
+    max-height: var(--tall); padding-bottom: 12px;
+  }
+  .sheet.tall, #suggest { max-height: var(--tall); }
+  .screen { left: 0; right: auto; width: calc(var(--side-end) + 30px); padding-left: var(--safe-left); box-shadow: var(--shadow); }
+  .grabber { margin: 2px auto 6px; }
+  .top-right, .map-tools, .report-fab { right: calc(14px + var(--safe-right)); }
+  .speedo { left: calc(14px + var(--safe-left)); }
+  .loc-banner { left: calc(14px + var(--safe-left)); right: calc(70px + var(--safe-right)); }
+  .maplibregl-ctrl-bottom-right { right: calc(84px + var(--safe-right)); }
+  /* Home: "Where to?" as wide as the column, not the whole screen. */
+  .bottom-bar { left: var(--safe-left); right: auto; width: calc(var(--side-w) + 20px); padding-bottom: max(10px, var(--safe-bottom)); }
+
+  /* Route preview: the same rows, tighter. */
+  .dest-text { padding-top: 0; }
+  .dest-text h2 { font-size: 19px; }
+  #dest-addr { margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dest-head .icon-btn { width: 40px; height: 40px; }
+  .wrong-place { height: 26px; margin: 4px 0 0; }
+  .from-row { margin: 6px 0 6px; }
+  .from-btn { padding: 6px 12px; }
+  .seg { margin-top: 6px; }
+  .seg button { height: 34px; }
+  .travel-seg { margin: 0 0 6px; }
+  .route-list { margin-top: 6px; }
+  .route-opt { padding: 8px 12px; }
+  .sheet-actions { margin-top: 8px; }
+  .sheet-actions .btn { height: 46px; white-space: nowrap; }
+  #route-status:empty { display: none; }
+
+  /* Driving and riding: banner on top of the column, trip sheet at its foot. */
+  #drive-ui .drive-top, #ride-ui .drive-top { left: var(--side-x); right: auto; width: var(--side-w); max-width: none; }
+  .banner-main { gap: 12px; padding: 10px 14px; }
+  .turn, .turn svg { width: 50px; height: 50px; }
+  .turn-dist { font-size: 28px; }
+  .turn-street { font-size: 17px; -webkit-line-clamp: 1; }
+  .then { padding: 4px 14px; }
+  .eta-bar { left: var(--side-x); right: auto; width: var(--side-w); bottom: max(10px, var(--safe-bottom)); border-radius: 18px; padding-bottom: 0; }
+  .eta-main { padding: 2px 0 6px; }
+  .eta-col b { white-space: nowrap; }
+  .trip-dest { padding: 6px 14px 8px; }
+  .trip-dest small { -webkit-line-clamp: 1; }
+  /* Open, the menu would run off the top of a short screen: two columns of options. */
+  .eta-menu { display: grid; grid-template-columns: 1fr 1fr; padding: 4px 0 6px; }
+  .eta-menu > .trip-dest { grid-column: 1 / -1; }
+  .eta-menu > .menu-row { padding: 10px 14px; gap: 10px; font-size: 15px; min-width: 0; }
+  .eta-menu > .menu-row > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The speedometer and the speed limit move out of the column, to the map's bottom-left corner; the buttons on the
+     right no longer have to clear the trip sheet. */
+  #drive-ui .speedo { left: calc(var(--side-end) + 14px); bottom: max(14px, var(--safe-bottom)); }
+  .limit { left: calc(var(--side-end) + 62px); bottom: calc(max(14px, var(--safe-bottom)) + 48px); }
+  #drive-ui .report-fab { bottom: max(14px, var(--safe-bottom)); }
+  .map-tools.drive { bottom: calc(max(14px, var(--safe-bottom)) + 76px); }
+  body.driving .maplibregl-ctrl-bottom-right { bottom: max(14px, var(--safe-bottom)); }
+  .alert-card { left: calc(var(--side-end) + 14px); right: calc(92px + var(--safe-right)); bottom: max(14px, var(--safe-bottom)); max-width: 400px; }
+  .ride-sheet { max-height: min(var(--tall), 62dvh); }
+  #ride-ui .map-tools { bottom: calc(14px + var(--safe-bottom)); }
+}

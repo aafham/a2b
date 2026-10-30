@@ -1,5 +1,14 @@
 # Route request lifecycle
 
+## Review refresh — 30 October 2026
+
+- Merged current upstream `7ff9dda` into the existing PR #48 branch. No new feature PR or unrelated pending PR was included.
+- Resolved the transit conflict by retaining both request ownership/cancellation and upstream's train reports. The deferred-preview regression now proves an obsolete response cannot replace the winning preview's reports.
+- Preserved upstream's driver-place integration, train guidance, motorcycle mode and landscape changes. Kept both `suggest.js` and `request-lifecycle.js` in the service-worker shell; bumped cache v39 to v40 for the changed list.
+- `npm test`: exit 0, 200 passed / 0 failed / 0 skipped. After adding the report assertion, all 9 request-lifecycle cases passed again. Changed JavaScript syntax and `git diff --check` pass.
+- Refreshed full-app browser check on local Wrangler/D1: Chromium 390×844, Search → delayed Drive → Walk → Motorbike → Train. Late Drive could not replace Walk; train report rendered. Actual local Worker handled guest account/presence; synthetic search/route/transit, GPS and an empty MapLibre style kept public providers unused. Zero page exceptions or unexpected local HTTP failures. Optional Three.js was deliberately blocked and the optional local places index was absent; no physical-road or live-provider claim.
+- #29, #58 and #59 remain separate open contributions; no pending code was copied from them. Existing backend deadline limitations below remain.
+
 Based on upstream `134045a`, refreshed with the open PR list on 29 October 2026. This branch changes the existing website; it does not include M1 account changes or PR #15.
 
 ## Problem and changes

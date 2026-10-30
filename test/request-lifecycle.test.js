@@ -191,11 +191,12 @@ test('train previews for the same destination keep only the newest origin result
   const a = c.openPreview(place);
   c.origin = { name: 'New station', lng: 102, lat: 4 };
   const b = c.openPreview(place);
-  requests[1].resolve({ trips: [{ name: 'train B', legs: [] }] });
+  requests[1].resolve({ trips: [{ name: 'train B', legs: [] }], reports: [{ id: 'current-line-report' }] });
   await b;
-  requests[0].resolve({ trips: [{ name: 'train A', legs: [] }] });
+  requests[0].resolve({ trips: [{ name: 'train A', legs: [] }], reports: [{ id: 'obsolete-line-report' }] });
   await a;
   assert.equal(c.transit.trips[0].name, 'train B');
+  assert.equal(c.transit.reports[0].id, 'current-line-report', 'train reports follow the winning preview');
   assert.deepEqual(Array.from(requests[1].body.from), [102, 4]);
 });
 
