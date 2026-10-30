@@ -23,7 +23,7 @@ import { noteProbeFix, startProbeSender, discardProbeBuffer } from './probe.js';
 import { welcome, hideSplash } from './welcome.js';
 import { watchUpdates, updateCheckpoint } from './update.js';
 import { prefetchRouteTiles } from './offline.js';
-import { DeadReckoningEpisode, isFreshGpsFix, shouldEstimate, nearTunnel, pointAt } from './dead-reckoning.js';
+import { DeadReckoningEpisode, isFreshGpsFix, LOST_AFTER_MS, shouldEstimate, nearTunnel, pointAt } from './dead-reckoning.js';
 import { matchesWordStarts } from './text.js';
 import { signPlaces } from './signs.js';
 import { mapPlace } from './map-places.js';
@@ -848,7 +848,7 @@ function handleFix(fix, first = false) {
     const recovering = tunnelEpisode.active || tunnelEpisode.exhausted || tunnelEpisode.suspended || tunnelAhead();
     const accepted = tunnelEpisode.acceptFix(fix, Date.now());
     if (recovering && !accepted) return;
-    tunnelFixAt = fix.gpsTime ?? fix.time;
+    tunnelFixAt = Date.now(); // outside recovery, keep main's real callback timing
     $('dr-chip')?.classList.add('hidden');
     lastGoodSpeed = fix.speed ?? lastGoodSpeed;
   }
@@ -2630,6 +2630,14 @@ function tunnelAhead() {
   return Boolean(nav && live && nearTunnel(live.along, nav.cum, nav.route.tunnels));
 }
 
+// Reroute/sharing may run before the next tunnel timer. A real callback gap still blocks old progress,
+// but ordinary weak or repeated measurements must not create a tunnel recovery requirement by themselves.
+function currentGpsUsable(now = Date.now()) {
+  return Boolean(state.pos && !state.pos.estimated && now - lastFixAt <= LOST_AFTER_MS &&
+    !tunnelEpisode.active && !tunnelEpisode.exhausted && !tunnelEpisode.suspended &&
+    (!tunnelAhead() || isFreshGpsFix(state.pos, now)));
+}
+
 function startTunnelWatch() {
   stopTunnelWatch();
   tunnelFixAt = Date.now();
@@ -2810,7 +2818,7 @@ async function reroute(fix, { force = false, note } = {}) {
     // The response may arrive long after the requested position. A gap cannot be restarted on a route with a
     // different distance origin; keep the car still until GPS confirms where it is on that route.
     const currentFix = state.pos;
-    const fresh = isFreshGpsFix(currentFix, Date.now()) && !tunnelEpisode.active && !tunnelEpisode.exhausted && !tunnelEpisode.suspended;
+    const fresh = currentGpsUsable();
     if (!sim && !fresh) tunnelEpisode.suspend();
     live = null;
     nav = new Navigator(rs[0], { units: state.settings.units });
@@ -3088,7 +3096,7 @@ function renderShareMenu() {
 function pushShare(withRoute = false) {
   if (!share || !live || !state.pos) return;
   const now = Date.now();
-  if (!isFreshGpsFix(state.pos, now) || tunnelEpisode.active || tunnelEpisode.exhausted || tunnelEpisode.suspended) return;
+  if (!currentGpsUsable(now)) return;
   withRoute ||= share.route !== nav; // keep sending a held/replaced route until the server acknowledges it
   const eta = now + live.remainingTime * 1000;
   // A new route goes out promptly; retrying the same unacknowledged route still follows the normal cadence.

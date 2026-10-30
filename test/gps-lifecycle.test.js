@@ -8,7 +8,7 @@ import vm from 'node:vm';
 import { Navigator } from '../public/nav.js';
 import { shouldSend } from '../public/follow.js';
 import { distance, bearing } from '../public/geo.js';
-import { DeadReckoningEpisode, isFreshGpsFix, shouldEstimate, nearTunnel, pointAt } from '../public/dead-reckoning.js';
+import { DeadReckoningEpisode, isFreshGpsFix, LOST_AFTER_MS, shouldEstimate, nearTunnel, pointAt } from '../public/dead-reckoning.js';
 
 const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
 // Run the real browser functions with a synthetic clock, GPS and DOM. No map servers or GPS hardware are used.
@@ -50,7 +50,7 @@ function drive({ speed = 8, count, stop = false } = {}) {
   const r = route(count, stop);
   const context = vm.createContext({
     Date: { now: () => clock.now }, setInterval: () => 1, clearInterval() {},
-    DeadReckoningEpisode, isFreshGpsFix, shouldEstimate, nearTunnel, pointAt, distance, bearing, Navigator,
+    DeadReckoningEpisode, isFreshGpsFix, LOST_AFTER_MS, shouldEstimate, nearTunnel, pointAt, distance, bearing, Navigator,
     tunnelEpisode: new DeadReckoningEpisode(), tunnelTimer: null, tunnelFixAt: 0, lastFixAccuracy: null, lastGoodSpeed: 0,
     mode: 'drive', sim: null, gpsBlocked: false, nav: new Navigator(r), live: null, travel: 'drive',
     state: { pos: null, settings: { units: 'metric' } }, local: { set() {} },
@@ -68,7 +68,7 @@ function drive({ speed = 8, count, stop = false } = {}) {
     'checkTolls', 'checkCameras', 'checkAlerts', 'renderStopMenu', 'setOffrouteNote', 'stopSimulation',
     'discardProbeBuffer', 'clearParkingPins', 'renderShareMenu', 'forgetTrip', 'drawTrail',
     'backToBrowse', 'resetTravel', 'resetTripRequests', 'drawRoutes', 'updateCheckpoint']) context[name] = () => {};
-  vm.runInContext(['onFix', 'estSpeed', 'handleFix', 'driveTick', 'tunnelAhead', 'startTunnelWatch',
+  vm.runInContext(['onFix', 'estSpeed', 'handleFix', 'driveTick', 'tunnelAhead', 'currentGpsUsable', 'startTunnelWatch',
     'stopTunnelWatch', 'stopReckoning', 'renderTunnelStatus', 'tunnelTick', 'arrive', 'endDrive'].map(appFunction).join('\n'), context);
   const fix = (point = r.coords[0], extra = {}) => context.onFix({
     timestamp: clock.now,
@@ -410,4 +410,48 @@ test('tunnel-ahead filtering rejects weak, stale and repeated measurements befor
   d.clock.now += 1000;
   d.fix(d.route.coords[1]);
   assert.equal(d.calls.moves.length, before + 1);
+});
+
+
+for (const travel of ['drive', 'walk', 'motorcycle']) test(`${travel}: ordinary weak GPS can reroute, move and share without entering an outage`, async () => {
+  const d = drive({ speed: 2 });
+  d.context.travel = travel;
+  d.context.shouldSend = () => true;
+  vm.runInContext(appFunction('pushShare'), d.context);
+  d.clock.now += 1000;
+  d.fix(d.route.coords[1], { accuracy: 150 });
+  assert.equal(d.calls.patches.length, 1, 'ordinary weak real position is shared');
+  const request = pendingReroute(d);
+  const replacement = route(20);
+  request.resolve(replacement);
+  await request.promise;
+  assert.equal(d.context.tunnelEpisode.suspended, false, 'reroute must not turn an ordinary weak fix into an outage');
+  assert.ok(d.context.live);
+  assert.ok(d.calls.patches.some(p => p.body.route === replacement.coords), 'replacement route is shared with current real progress');
+  const before = d.calls.moves.length;
+  d.clock.now += 1000;
+  d.fix(replacement.coords[2], { accuracy: 150 });
+  assert.equal(d.calls.moves.length, before + 1, 'next weak real fix still moves the marker');
+  assert.deepEqual(Array.from(d.context.state.pos.lngLat), replacement.coords[2]);
+});
+
+test('ordinary stale measurement timestamps with current callbacks do not create a false GPS outage', async () => {
+  const d = drive({ speed: 8 });
+  d.context.shouldSend = () => true;
+  vm.runInContext(appFunction('pushShare'), d.context);
+  const oldMeasurement = d.clock.now;
+  for (let i = 1; i <= 4; i++) {
+    d.clock.now += 1000;
+    d.context.handleFix({ lngLat: d.route.coords[i], speed: 8, accuracy: 10, gpsTime: oldMeasurement, time: oldMeasurement });
+    d.context.tunnelTick();
+    assert.equal(d.context.tunnelEpisode.active, false, 'callback freshness keeps main behavior outside tunnels');
+  }
+  assert.equal(d.calls.patches.length, 4);
+  const request = pendingReroute(d);
+  request.resolve(route(30));
+  await request.promise;
+  assert.equal(d.context.tunnelEpisode.suspended, false);
+  d.clock.now += 3000;
+  d.context.pushShare(true);
+  assert.equal(d.calls.patches.length, 5, 'an actual callback gap blocks further stale sharing');
 });

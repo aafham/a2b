@@ -46,7 +46,17 @@ Submitted for owner review. No CLA acceptance, merge or deployment was performed
 
 - Addressed [review 5709612594](https://github.com/thaqif0709/a2b/pull/44#pullrequestreview-5709612594). Merged upstream `7ff9dda`, retaining landscape, smooth GPS correction, motorcycle, suggestions and train behavior.
 - `handleFix` rejects vague/stale/repeated fixes only near a tunnel or during an active, exhausted or suspended estimate. Ordinary Drive, Walk and Motorbike GPS still moves the marker as on main. Fresh measurements still update episode bookkeeping so repeats cannot release a later outage.
-- Navigation tracks whether its retained progress came from an estimate. Only that recovery requires a real on-route fix before stop/arrival confirmation; ordinary real-GPS stop cues and arrival keep main's conditions. Estimates still cannot complete a trip, end sharing or reset the outage budget. Existing sharing freshness and reroute suspension protections remain.
+- Navigation tracks whether its retained progress came from an estimate. Only that recovery requires a real on-route fix before stop/arrival confirmation; ordinary real-GPS stop cues and arrival keep main's conditions. Estimates still cannot complete a trip, end sharing or reset the outage budget. Sharing and rerouting still reject an actual GPS callback gap and active/exhausted/suspended estimates, while ordinary weak or repeated real callbacks remain usable.
 - Added regressions for ordinary weak/stale/repeated fixes in all three travel modes, tunnel-ahead rejection, and main-compatible real stop/arrival behavior. Existing bounded-budget, estimated-arrival, off-route recovery and sharing tests remain intact.
 - `npm test`: exit 0, **217 passed, 0 failed, 0 skipped** (Node 24.22.1). App/navigation syntax, `git diff --check` and `git merge-tree --write-tree upstream/main HEAD`: exit 0.
 - Chrome 156.0.8078.48 component smoke rerun against current HTML/CSS and status renderer, widths 320/375/812, day/night, estimating/waiting/exhausted/recovered; no page errors. GPS and network effects remain synthetic. This is not a hardware GPS or full-map/on-road verification.
+
+### Reroute and sharing scope correction
+
+A follow-up cross-review reproduced one remaining route into the same freeze: an ordinary weak fix was accepted, but rerouting still applied the strict accuracy threshold globally and suspended the episode. Sharing also silently dropped that ordinary fix.
+
+- `currentGpsUsable()` now checks recent accepted real callback receipt (`lastFixAt`) for ordinary navigation. Strict measurement accuracy/age checks additionally apply near a tunnel. Active, exhausted or suspended estimates and an actual callback gap over 2.5 seconds still block old progress, including before the next timer runs.
+- `tunnelFixAt` follows callback time, as on main. A stale/repeated measurement timestamp alone no longer starts a false outage while ordinary real callbacks keep arriving. Recovery during a tunnel/estimate still requires a newer fresh accurate measurement.
+- Reroutes use the latest usable real position, never the captured request position. No outage budget is renewed by a route replacement.
+- Four added regressions failed before this correction, then passed: ordinary weak Drive/Walk/Motorbike fixes can share, reroute and keep moving; current callbacks carrying old measurement timestamps do not create a false outage. Existing active/exhausted and timer-delayed outage replan/sharing tests still pass.
+- Final `npm test`: exit 0, **221 passed, 0 failed, 0 skipped**. App syntax and `git diff --check` pass. Browser scope from the preceding verification remains component-only; this correction changes the tested lifecycle logic, not the rendered UI.
