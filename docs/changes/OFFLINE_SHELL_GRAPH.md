@@ -1,5 +1,13 @@
 # Complete the offline frontend shell
 
+## Review refresh — 30 October 2026
+
+- Merged upstream `7ff9dda` into PR #50 and resolved the shell conflict additively: retain upstream `suggest.js` and this PR's `route-preview.js` / `probe.js`.
+- Upstream already uses cache v39, so this updated shell advances to v40.
+- `npm test`: exit 0, 193 passed / 0 failed / 0 skipped. Graph: all 26 current local modules covered.
+- `npm run test:offline-browser`: exit 0. Fresh installed service worker, ordinary HTTP cache cleared, original page closed, local server stopped, then new offline page: app/menu boot, all 26 local modules and both MapLibre assets from SW, zero page errors and zero requests reaching the stopped origin. New `/api/driver-places` remains network-only and fails offline as expected.
+- No prefetch changes from #15 included; pending #58's new local module must be checked by this graph if it lands later. Historical results below refer to the original branch base.
+
 Base: upstream `134045abe40e3fd50f73fb24437c4ef4a2920509`. Independent of partial tile coverage PR #15;
 no prefetch, tile-budget or completeness logic from that PR is copied here.
 
