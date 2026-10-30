@@ -213,3 +213,27 @@ test('exit numbers and long road codes are read digit by digit', () => {
   assert.equal(spokenCodes('In 300 meters, turn right.'), 'In 300 meters, turn right.');
   assert.equal(spokenCodes('Speed camera in 500 meters. The limit is 110.'), 'Speed camera in 500 meters. The limit is 110.');
 });
+
+
+test('ordinary real GPS retains main arrival behavior without an on-route prerequisite', () => {
+  // A very short route is already within main's arrival-distance threshold at its start.
+  const short = { coords: [[101.6, 3.1], [101.6001, 3.1]], steps: [
+    { type: 'depart', begin: 0, end: 1, time: 10, pre: 'Walk east.' },
+    { type: 'arrive', begin: 1, end: 1, time: 0, pre: 'You have arrived.' },
+  ] };
+  const result = new Navigator(short).update({ position: [101.6, 3.1005], accuracy: 10 });
+  assert.ok(result.offBy > 40);
+  assert.equal(result.offRoute, false);
+  assert.equal(result.arrived, true, 'ordinary real GPS keeps main distance-based arrival');
+});
+
+test('ordinary real GPS keeps stop cues outside the route without estimate recovery', () => {
+  const route = lRoute();
+  route.steps[1] = { ...route.steps[1], type: 'stop', pre: 'You have reached your stop.' };
+  const nav = new Navigator(route);
+  nav.update({ position: A, speed: 0 });
+  nav.update({ position: [13.4, 52.508], speed: 0 }); // ~111 m before stop, outside the near-cue range
+  const result = nav.update({ position: [13.401, 52.508], speed: 20 });
+  assert.ok(result.offBy > 40);
+  assert.equal(result.prompt, 'You have reached your stop.', 'real fixes retain main speed-based cue timing');
+});

@@ -385,3 +385,29 @@ test('a late route acknowledgement cannot mark a different sharing session as up
   await Promise.resolve();
   assert.equal(d.context.share.route, undefined);
 });
+
+
+for (const travel of ['drive', 'walk', 'motorcycle']) test(`${travel}: ordinary weak, stale and repeated real GPS still updates progress`, () => {
+  const d = drive();
+  d.context.travel = travel;
+  const before = d.calls.moves.length;
+  // No tunnel or estimate: main accepts these real measurements.
+  for (const [i, accuracy, gpsTime] of [[1, 150, d.clock.now], [2, 10, d.clock.now - 5000], [3, 10, d.clock.now]]) {
+    d.context.handleFix({ lngLat: d.route.coords[i], speed: 8, accuracy, time: gpsTime, gpsTime });
+    assert.deepEqual(d.context.state.pos.lngLat, d.route.coords[i]);
+  }
+  assert.equal(d.calls.moves.length, before + 3);
+});
+
+test('tunnel-ahead filtering rejects weak, stale and repeated measurements before estimating', () => {
+  const d = drive();
+  d.context.nav.route.tunnels = [[0, 5]];
+  const before = d.calls.moves.length;
+  for (const [accuracy, gpsTime] of [[150, d.clock.now + 1000], [10, d.clock.now - 5000], [10, d.clock.now]]) {
+    d.context.handleFix({ lngLat: d.route.coords[1], speed: 8, accuracy, time: gpsTime, gpsTime });
+  }
+  assert.equal(d.calls.moves.length, before);
+  d.clock.now += 1000;
+  d.fix(d.route.coords[1]);
+  assert.equal(d.calls.moves.length, before + 1);
+});

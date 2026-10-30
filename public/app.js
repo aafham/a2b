@@ -843,8 +843,11 @@ function estSpeed(prev, lngLat, t) {
 function handleFix(fix, first = false) {
   if (mode === 'drive' && !sim) {
     lastFixAccuracy = fix.accuracy;
-    // Vague, stale or repeated measurements cannot recover an outage or confirm arrival.
-    if (!tunnelEpisode.acceptFix(fix, Date.now())) return;
+    // Tight recovery checks apply only near a tunnel or during an estimate/outage. Ordinary real fixes
+    // keep main's behavior for driving, walking and motorbikes, even in weak street/building signal.
+    const recovering = tunnelEpisode.active || tunnelEpisode.exhausted || tunnelEpisode.suspended || tunnelAhead();
+    const accepted = tunnelEpisode.acceptFix(fix, Date.now());
+    if (recovering && !accepted) return;
     tunnelFixAt = fix.gpsTime ?? fix.time;
     $('dr-chip')?.classList.add('hidden');
     lastGoodSpeed = fix.speed ?? lastGoodSpeed;
@@ -2606,7 +2609,7 @@ function driveTick(fix) {
   if (share) pushShare(); // viewers see the last real position, not a guess
 
   const stopStep = nav.steps.findIndex((st) => st.type === 'stop');
-  if (live.confirmedOnRoute && stops.length && stopStep >= 0 && live.stepIndex >= stopStep) {
+  if (live.confirmedProgress && stops.length && stopStep >= 0 && live.stepIndex >= stopStep) {
     toast(`Reached ${stops.shift().name}`);
     renderStopMenu();
   }
