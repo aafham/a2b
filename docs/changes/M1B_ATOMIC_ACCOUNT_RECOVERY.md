@@ -1,6 +1,6 @@
 # Atomic account recovery
 
-Based on upstream `134045a`. This change fixes password recovery on the existing website.
+Initially based on upstream `134045a`; refreshed onto `7ff9dda` for review on 30 October 2026. This change fixes password recovery on the existing website.
 
 ## Problem and changes
 
@@ -11,9 +11,9 @@ Based on upstream `134045a`. This change fixes password recovery on the existing
 - The reset button is disabled while a request is pending. The form now asks for the latest saved code, including replacements.
 - Recovery has a separate eight-attempt / fifteen-minute window per normalized email. Concurrent requests reserve attempts inside the same transaction. Unknown emails receive the same invalid/limited responses; users sharing an IP do not share the limit. Success clears recovery and login failures for that account; daily cleanup removes expired attempts.
 - Malformed percent-encoded session cookies are treated as signed out instead of causing a server error.
-- Migration `0013_recovery_attempts.sql` and runtime schema initialization create the attempt table and email/time index. No role or tester authorization behavior changes.
+- Migration `0015_recovery_attempts.sql` and runtime schema initialization create the attempt table and email/time index. No role or tester authorization behavior changes.
 
-## Validation
+## Original validation
 
 - Baseline synthetic test of upstream `consumeRecoveryCode`: both competing requests succeeded (2/2), demonstrating the race without real accounts.
 - `npm test`: 185 tests passed, including six new recovery tests.
@@ -31,3 +31,15 @@ Cloudflare documents that [D1 batches are SQL transactions and roll back on stat
 The rate limit is per account, so someone who knows an address can temporarily exhaust its window; it is independent of the password-login window. A response lost after a successful commit cannot reveal the replacement code again: the user can sign in with the new password, but must save the replacement when it is displayed. Recovery codes retain the existing no-expiry policy and format.
 
 Apply the additive migration through the owner's normal release process before deploying. This change is submitted for review only; it has not been merged or deployed, and no CLA has been accepted.
+
+## Review refresh — 30 October 2026
+
+- Merged upstream `7ff9dda` without conflicts. Preserved the already-landed place suggestions and train reports.
+- Renamed the additive migration to `0015_recovery_attempts.sql`: main already owns 0013 and 0014. No existing
+  production migration is changed; this renumbering updates this branch only.
+- `npm test`: exit 0, 197 pass, 0 fail, 0 skip, including concurrent recovery, rollback/retry at all three
+  mutation stages, rate limiting and malformed cookies. Syntax checks and `git diff --check` pass.
+- The renamed migration executes successfully on an isolated local Wrangler D1 database. No remote migration,
+  merge, deployment or CLA action was performed.
+- Re-ran the actual local Wrangler D1 concurrency and fault harness against the refreshed branch: one winner,
+  no loser cookie, and rollback/retry passes for password update, session revocation and session insertion.
