@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Thaqif Syarafuddin bin Roslan. A2B: https://github.com/thaqif0709/a2b (see NOTICE).
 
-// One geolocation watch owns its callbacks and retry. A timed-out watch may still call back, so clear it before
-// retrying and ignore anything delivered after it has been replaced or stopped.
+// A transient error does not end a geolocation watch: keep accepting its fixes, especially on tunnel exit.
+// Replace it only when retrying the first acquisition; reject callbacks from watches actually replaced.
 export function createLocationWatch({ geolocation, onFix, onState, setTimer = setTimeout, clearTimer = clearTimeout,
-  retryMs = 15_000, accuracyLimit = 80 }) {
-  let watchId = null, retryTimer = null, generation = 0, active = false, status = 'idle';
+  retryMs = 15_000, accuracyLimit = 80, hasPosition = () => false }) {
+  let watchId = null, retryTimer = null, generation = 0, active = false, status = 'idle', receivedPosition = false;
   const report = (next) => {
     if (status === next) return;
     status = next;
@@ -32,14 +32,16 @@ export function createLocationWatch({ geolocation, onFix, onState, setTimer = se
     const current = () => active && token === generation;
     const fail = (error) => {
       if (!current()) return;
-      stop();
       const next = error?.code === 1 ? 'denied' : error?.code === 3 ? 'timeout' : 'unavailable';
       report(next);
-      if (next === 'denied') return; // only a deliberate retry can ask again after permission was refused
+      if (next === 'denied') { stop(); return; } // only a deliberate retry may ask again
+      if (receivedPosition || hasPosition() || retryTimer !== null) return;
       const retryToken = generation;
       retryTimer = setTimer(() => {
         if (retryToken !== generation) return;
         retryTimer = null;
+        if (receivedPosition || hasPosition()) return;
+        stop(); // replace only now: the old watch remained usable throughout the wait
         start();
       }, retryMs);
     };
@@ -49,6 +51,7 @@ export function createLocationWatch({ geolocation, onFix, onState, setTimer = se
         const { longitude, latitude, accuracy } = position.coords ?? {};
         if (!Number.isFinite(longitude) || Math.abs(longitude) > 180 || !Number.isFinite(latitude) || Math.abs(latitude) > 90 ||
             !Number.isFinite(accuracy) || accuracy < 0) return fail({ code: 2 });
+        receivedPosition = true;
         cancelRetry();
         report(accuracy > accuracyLimit ? 'inaccurate' : 'ready');
         onFix(position);
@@ -67,8 +70,8 @@ export function locationMessage(status) {
   return {
     acquiring: 'Finding your location…',
     denied: 'Location permission is off. Allow location for this site in your browser settings, then try again.',
-    timeout: 'Finding your location took too long. Retrying shortly.',
-    unavailable: 'Your location is temporarily unavailable. Retrying shortly.',
+    timeout: 'Finding your location took too long. Still listening for GPS.',
+    unavailable: 'Your location is temporarily unavailable. Still listening for GPS.',
     inaccurate: 'Location signal is weak. Waiting for a more accurate fix.',
     unsupported: 'This browser cannot provide location. You can still plan from the map.',
   }[status] ?? '';

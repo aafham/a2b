@@ -800,7 +800,7 @@ function keepTrail(at) {
 // ================= Location =================
 function startLocation() {
   locationStarted = true;
-  locationWatch ??= createLocationWatch({ geolocation: navigator.geolocation, onFix, onState: renderLocationStatus });
+  locationWatch ??= createLocationWatch({ geolocation: navigator.geolocation, hasPosition: () => Boolean(state.pos), onFix, onState: renderLocationStatus });
   locationWatch.start();
 }
 

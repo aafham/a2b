@@ -54,12 +54,14 @@ test('repeated start and transient errors keep at most one watch and one retry',
     const old = f.current();
     old.error({ code: i % 2 ? 2 : 3 });
     assert.equal(f.controller.status, i % 2 ? 'unavailable' : 'timeout');
-    assert.equal(f.watches.size, 0, 'failed watcher is cleared before waiting');
+    assert.equal(f.watches.size, 1, 'transient errors keep listening while waiting');
     assert.equal(f.timers.size, 1);
-    for (let j = 0; j < 5; j++) { old.error({ code: 3 }); old.success(position()); }
-    assert.equal(f.timers.size, 1, 'late callbacks cannot create extra retries');
-    assert.equal(f.fixes.length, 0, 'late success from old watch is ignored');
+    for (let j = 0; j < 5; j++) old.error({ code: 3 });
+    assert.equal(f.timers.size, 1, 'repeated errors cannot create extra retries');
     f.runRetry();
+    old.success(position());
+    old.error({ code: 3 });
+    assert.equal(f.fixes.length, 0, 'success from replaced watch is ignored');
     assert.equal(f.watches.size, 1);
     assert.equal(f.timers.size, 0);
   }
@@ -128,11 +130,11 @@ test('missing API, thrown start and invalid coordinates report distinct recovera
   invalid.current().success({ coords: { longitude: NaN, latitude: 3, accuracy: 10 } });
   assert.equal(invalid.controller.status, 'unavailable');
   assert.equal(invalid.fixes.length, 0);
-  assert.equal(invalid.watches.size, 0);
+  assert.equal(invalid.watches.size, 1, 'invalid data does not kill the watch');
   invalid.bounded();
 });
 
-test('synchronous error before watchPosition returns still clears its watch', () => {
+test('synchronous timeout before watchPosition returns preserves the watch until retry', () => {
   const f = fixture();
   const register = f.options.geolocation.watchPosition;
   f.options.geolocation.watchPosition = (success, error, options) => {
@@ -141,8 +143,11 @@ test('synchronous error before watchPosition returns still clears its watch', ()
     return id;
   };
   f.controller.start();
-  assert.equal(f.watches.size, 0);
+  assert.equal(f.watches.size, 1);
   assert.equal(f.timers.size, 1);
+  f.current().success(position());
+  assert.equal(f.fixes.length, 1);
+  assert.equal(f.timers.size, 0);
   f.bounded();
 });
 
@@ -202,4 +207,65 @@ test('app wiring distinguishes GPS states, retries once and cleans up across pag
   f.bounded();
   const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
   assert.match(sw, /'\/location\.js'/, 'the offline app includes its new imported module');
+});
+
+
+test('a tunnel timeout keeps the established watch accepting fixes immediately', () => {
+  const f = fixture();
+  f.controller.start();
+  const watch = f.current();
+  watch.success(position());
+  for (const code of [3, 2, 3]) {
+    watch.error({ code });
+    assert.equal(f.current(), watch);
+    assert.equal(f.timers.size, 0, 'no retry after a position has arrived');
+  }
+  watch.success(position());
+  assert.equal(f.fixes.length, 2, 'tunnel-exit fix arrives without a 15-second gap');
+  assert.equal(f.controller.status, 'ready');
+  f.bounded();
+});
+
+test('first acquisition succeeds during retry wait and cancels replacement', () => {
+  const f = fixture();
+  f.controller.start();
+  const watch = f.current();
+  watch.error({ code: 3 });
+  assert.equal(f.timers.size, 1);
+  const pending = f.timers.values().next().value.callback;
+  watch.success(position());
+  pending();
+  assert.equal(f.current(), watch);
+  assert.equal(f.history.length, 1);
+  assert.equal(f.timers.size, 0);
+  assert.equal(f.fixes.length, 1);
+  f.bounded();
+});
+
+test('a cached app position keeps the watch rather than scheduling acquisition retries', () => {
+  const f = fixture();
+  const controller = createLocationWatch({ ...f.options, hasPosition: () => true });
+  controller.start();
+  const watch = f.current();
+  watch.error({ code: 2 });
+  assert.equal(f.timers.size, 0);
+  assert.equal(f.current(), watch);
+  controller.stop();
+  f.bounded();
+});
+
+
+test('synchronous permission denial clears the returned watch and never retries', () => {
+  const f = fixture();
+  const register = f.options.geolocation.watchPosition;
+  f.options.geolocation.watchPosition = (success, error, options) => {
+    const id = register(success, error, options);
+    error({ code: 1 });
+    return id;
+  };
+  f.controller.start();
+  assert.equal(f.controller.status, 'denied');
+  assert.equal(f.watches.size, 0);
+  assert.equal(f.timers.size, 0);
+  f.bounded();
 });
