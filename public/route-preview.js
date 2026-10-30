@@ -9,8 +9,8 @@ export function showRouteLoading(element, message) {
   element.replaceChildren(spinner, element.ownerDocument.createTextNode(message));
 }
 
-// Auto-start only driving routes, and only when the server confirms it did not have to ignore a reported closure.
-// Walking routes always wait for a tap on Go.
+// Auto-start only driving and riding routes, and only when the server confirms it did not have to ignore a reported
+// closure. Walking routes and trips by train always wait for a tap on Go.
 export function canAutoStartRoute({
   mode,
   travel,
@@ -22,7 +22,7 @@ export function canAutoStartRoute({
   closuresIgnored,
 }) {
   return mode === 'preview'
-    && travel === 'drive'
+    && (travel === 'drive' || travel === 'motorcycle')
     && routeAvailable
     && hasLocation
     && !buttonDisabled

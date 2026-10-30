@@ -2,6 +2,18 @@
 
 Based on upstream `134045abe40e3fd50f73fb24437c4ef4a2920509`. No framework or provider change.
 
+## Review update — 30 October 2026
+
+- Merged upstream `7ff9dda` into this PR branch in response to [review #5709613590](https://github.com/thaqif0709/a2b/pull/45#pullrequestreview-5709613590).
+- Resolved the `route-preview.js` conflict by keeping `showRouteLoading` and upstream's updated auto-start
+  comment and behavior: Drive/Motorbike may auto-start, while Walk/Train wait for Go. Closure fallback still
+  requires explicit start. The password form and other upstream changes remain intact.
+- On the merged code: `npm test` exit 0, **191 pass / 0 fail / 0 skip**; `npm run test:browser` exit 0,
+  **10 pass** across Chromium and WebKit. Syntax checks for `app.js`, `panels.js`, and `route-preview.js`, and
+  `git diff --check` pass. Browser coverage remains the local synthetic component tests described below.
+- Historical counts below describe the original submission. No new feature, upstream merge, deployment or
+  production configuration change was performed for this review update.
+
 ## Problem and changes
 
 - `openPreview()` interpolated an origin name into HTML while loading routes. A harmless synthetic
