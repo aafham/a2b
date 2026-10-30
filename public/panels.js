@@ -11,6 +11,7 @@ import { appVersion } from './update.js';
 import { VEHICLES, COLORS, DEFAULT_COLOR } from './vehicle3d.js';
 import { onlineLine } from './presence.js';
 import { tileCount, clearOfflineTiles, originUsage } from './offline.js';
+import { openReview, suggestionSummary, syncDriverPlaces } from './suggest.js';
 
 let ctx; // callbacks from app.js
 let authMode = 'signup';
@@ -96,6 +97,7 @@ const REASONS = {
   report: 'Sign up to report what you see. Other drivers can thank you, and you earn points.',
   vote: 'Sign up to confirm or dismiss reports from other drivers.',
   share: 'Sign up to share your drive and ETA with friends.',
+  suggest: 'Sign up to add missing places and fix wrong ones. You earn points when one is approved.',
 };
 
 export function openAuth(reason = null, mode = 'signup') {
@@ -360,6 +362,7 @@ export function openSettings() {
       <button class="set-row" id="s-feedback"><span>Send feedback<small>Ideas, bugs, a wrong road or a missing place. It goes straight to the developer.</small></span></button>
     </div>
     ${state.tester ? `<div class="set-group"><h3>Testing</h3>
+      <button class="set-row" id="s-suggestions"><span>Suggested places<small>Review places drivers added or corrected</small></span></button>
       <label class="set-row"><span>Demo drive<small>Simulate GPS along the route. Handy for trying A2B at a desk.</small></span><input type="checkbox" class="switch" id="s-sim" ${state.simulate ? 'checked' : ''}></label>
       <div class="set-row${state.simulate ? '' : ' hidden'}" id="s-sim-speed-row"><span>Demo speed<small>How fast the demo car drives</small></span><div class="choice" id="s-sim-speed">${[1, 2, 4, 8]
         .map((v) => `<button data-v="${v}" class="${local.get('simSpeed', 1) === v ? 'on' : ''}">${v}×</button>`)
@@ -419,6 +422,7 @@ export function openSettings() {
     ctx.setupVehicle();
   };
   if (state.tester) {
+    $('s-suggestions').onclick = () => openInbox('places');
     $('s-sim').onchange = (e) => {
       state.simulate = e.target.checked;
       local.set('simulate', state.simulate);
@@ -435,7 +439,7 @@ export function openSettings() {
   }
   if (state.owner) {
     $('s-usage').onclick = openUsage;
-    $('s-inbox').onclick = openInbox;
+    $('s-inbox').onclick = () => openInbox();
   }
   $('s-feedback').onclick = openFeedback;
   $('s-home').onclick = () => homeWorkAction('home');
@@ -575,8 +579,18 @@ function openFeedback() {
 
 // The owner's feedback inbox (the server checks owner access for every read and update). Close marks one handled and
 // moves it under Closed, tagged with when; Reopen brings it back. Nothing is deleted.
-async function openInbox() {
-  const body = openPanel('Feedback', '<p class="hint" style="padding:12px 18px">Loading…</p>');
+async function openInbox(tab = 'messages') {
+  if (!state.owner && !state.tester) return;
+  if (!state.owner) tab = 'places';
+  else if (!state.tester) tab = 'messages';
+  const panel = openPanel(state.owner ? 'Feedback' : 'Suggested places', `${inboxTabs(tab)}<div id="fb-list"><p class="hint" style="padding:12px 18px">Loading…</p></div>`);
+  const tabs = panel.querySelector('.fb-tabs');
+  if (tabs) tabs.onclick = (e) => {
+    const t = e.target.closest('[data-tab]')?.dataset.tab;
+    if (t && t !== tab) openInbox(t);
+  };
+  const body = $('fb-list');
+  if (tab === 'places') return renderPlaceSuggestions(body);
   let feedback;
   try {
     ({ feedback } = await api('/api/feedback'));
@@ -607,6 +621,50 @@ async function openInbox() {
       await api(`/api/feedback/${f.id}`, { method: 'PATCH', body: { closed } });
       f.closed_at = closed ? Date.now() : null;
       render();
+    } catch (err) {
+      btn.disabled = false;
+      toast(err.message);
+    }
+  };
+}
+
+const inboxTabs = (tab) =>
+  state.owner ? `<div class="seg fb-tabs" role="tablist">${[['messages', 'Messages'], ...(state.tester ? [['places', 'Places']] : [])]
+    .map(([t, l]) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}" class="${t === tab ? 'on' : ''}">${l}</button>`)
+    .join('')}</div>` : '';
+
+// Places drivers suggested (src/lib/suggestions.js): each opens on the map to approve or reject (public/suggest.js).
+// The last few reviewed are listed under them, and an approved one can be taken back out of search.
+async function renderPlaceSuggestions(body) {
+  let pending, reviewed;
+  try {
+    ({ pending, reviewed } = await api('/api/suggestions'));
+  } catch (e) {
+    body.innerHTML = `<p class="hint" style="padding:12px 18px">${esc(e.message)}</p>`;
+    return;
+  }
+  const when = (ms) => new Date(ms).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const item = (s) => `<div class="fb-item${s.status === 'pending' ? '' : ' closed'}" data-id="${s.id}">
+    <p><b>${esc(suggestionSummary(s))}</b>${s.note ? `<br>“${esc(s.note)}”` : ''}</p>
+    <small>${esc(s.by_name ?? 'Former driver')} · ${esc(when(s.created_at))}${s.address ? ` · ${esc(s.address)}` : ''}</small>
+    <div class="fb-actions">${s.status === 'pending' ? '<button class="btn ghost" data-review>Review on map</button>'
+      : `<span class="fb-tag">${esc({ approved: 'Approved', rejected: 'Rejected', undone: 'Taken out' }[s.status] ?? s.status)} · ${esc(when(s.reviewed_at))}</span>${s.status === 'approved' ? '<button class="btn ghost" data-undo>Take out</button>' : ''}`}</div>
+  </div>`;
+  body.innerHTML = `${pending.length ? pending.map(item).join('') : `<p class="hint" style="padding:12px 18px">No places waiting.</p>`}
+    ${reviewed.length ? `<h3 class="list-head fb-head">Reviewed</h3>${reviewed.map(item).join('')}` : ''}`;
+  body.onclick = async (e) => {
+    const btn = e.target.closest('[data-review], [data-undo]');
+    if (!btn) return;
+    const s = [...pending, ...reviewed].find((x) => String(x.id) === btn.closest('.fb-item').dataset.id);
+    if (btn.hasAttribute('data-review')) {
+      $('panel').classList.add('hidden');
+      return openReview(s, () => openInbox('places'));
+    }
+    btn.disabled = true;
+    try {
+      await api(`/api/suggestions/${s.id}`, { method: 'POST', body: { action: 'undo' } });
+      syncDriverPlaces(true);
+      renderPlaceSuggestions(body);
     } catch (err) {
       btn.disabled = false;
       toast(err.message);

@@ -40,9 +40,10 @@ Keep the screen on while you drive (A2B keeps it awake). Only use it when it's s
 
 | Feature | What it does |
 | --- | --- |
-| 🔎 **Search** | Places from OpenStreetMap plus shops from Overture Maps, searched near you. Landmarks come first, and paste coordinates (`3.15, 101.71`) to go anywhere. Search a kind of place in English or Malay ("petrol", "stesen minyak", "hospital", "klinik", "balai polis", "convenience store", "ev charger", "pengecas", "petrol near klcc") for the nearest ones. Places you pick are kept as your search history, on the phone without an account (Clear wipes it). |
+| 🔎 **Search** | Places from OpenStreetMap plus shops from Overture Maps, searched near you. Landmarks come first, and paste coordinates (`3.15, 101.71`) to go anywhere. Search a kind of place in English or Malay ("petrol", "stesen minyak", "hospital", "klinik", "balai polis", "convenience store", "ev charger", "pengecas", "petrol near klcc") for the nearest ones. Places you pick are kept as your search history, on the phone without an account (Clear wipes it). Can't find a place, or it's in the wrong spot? With an account, add it or fix it by moving the map under a pin; once a tester approves it, every phone finds it (and the driver gets 10 points). |
 | ⛽ **On the map** | Petrol stations, EV chargers, hospitals, clinics and convenience stores show on the map when zoomed in. Tap one, or any station (LRT, MRT, KTM, monorail), bus stop, car park or landmark the map shows, named or not, for routes there. |
 | 🛣️ **Routes** | Up to three routes with drive time in live traffic (jams coloured on the line), arrival, tolls and reported traffic. Tap a route on the map to pick it; the chosen one starts by itself after 8 seconds. |
+| 🏍️ **Motorbike** | Switch the route options to Motorbike for routes a motorcycle can take, with the same cameras, limits and reports, and no toll to pay at plazas that are free for motorcycles. While riding, your position shows as a motorbike and rider in your colour. |
 | 🟩 **Exit signs** | Expressway exits show their overhead sign on the turn banner, green as on the road: the exit number, the road it leads onto and where it goes ("EXIT 218 · 241 · Seremban / Labu"), and the voice names them too. |
 | 🚶 **Walking** | Switch the route options to Walk for footpaths and pedestrian crossings, with the same spoken directions. |
 | 🚆 **By train** | Switch a route to Train for trips on the LRT, MRT, Monorail, BRT and KTM Komuter: the walk to the station, which line (in its colour) and which way, how often trains run, where to change and the walk at the end, drawn on the map. Live departure times open in Google Maps. |
@@ -104,33 +105,33 @@ The database tables are created on the first request (or run `npm run db:migrate
 `wrangler.toml`:
 
 - `MAX_ACTIVE` and `MAX_GUESTS`: how many devices can use the app at once, and how many of those can be guests.
-- `TESTER_USER_IDS` (a secret): comma-separated account IDs for demo driving and the capacity-limit bypass.
-  Testers cannot read the usage dashboard or private feedback.
+- `TESTER_EMAILS` (a secret: `npx wrangler secret put TESTER_EMAILS`): existing email allowlist for demo driving,
+  the capacity-limit bypass and reviewing suggested places. Testers cannot read usage or private feedback.
 - `OWNER_USER_IDS` (a secret): comma-separated account IDs for the usage dashboard and private feedback inbox,
-  including closing and reopening feedback. Owners can also use the testing tools.
+  including closing and reopening feedback. Testing access is configured separately using `TESTER_EMAILS`.
 - `OCM_KEY` (a secret, optional): an [Open Charge Map](https://openchargemap.org/site/develop/api) API key, free, for
   more EV chargers than OpenStreetMap has.
 
 To use your own domain, add it under *Workers & Pages → a2b → Settings → Domains & Routes*.
 
-**Provision trusted accounts after signup**
+**Provision owner accounts after signup**
 
-Signup does not verify email ownership. `TESTER_EMAILS` is no longer used, and there is no automatic migration
-from email addresses to privileged accounts. With neither ID secret configured, everyone has ordinary access.
+Signup does not verify email ownership. `TESTER_EMAILS` keeps its existing testing and place-review behavior;
+it never grants private feedback or usage access. There is no automatic promotion from an email match to owner.
+Without `OWNER_USER_IDS`, nobody can read the private inbox or usage dashboard.
 
 1. Have the intended person create an ordinary account on the correct deployment and sign in. In their browser's
    developer tools, open the response to `GET /api/me` and obtain `user.id` (not the session ID or cookie).
 2. Confirm that existing account and its ID with the intended person through an already trusted channel. An
    email address, display name or unverified request alone is not proof. Never pre-authorize an ID for an account
    that has not been created. IDs belong to one database; verify them again after a database replacement.
-3. Only the deployment maintainer sets `TESTER_USER_IDS` or `OWNER_USER_IDS` with `npx wrangler secret put
-   TESTER_USER_IDS` or `npx wrangler secret put OWNER_USER_IDS`. Enter only the confirmed IDs, separated by commas,
-   at the prompt. Keep the values out of commits, logs and PRs. Retire the unused `TESTER_EMAILS` secret separately.
-4. Reload the app and verify the intended access: testers see **Settings › Testing**, owners additionally see
-   **Settings › Administration**. Remove an ID from its secret to revoke access on the next API request; reload
+3. Only the deployment maintainer sets `OWNER_USER_IDS` with `npx wrangler secret put OWNER_USER_IDS`. Enter only
+   the confirmed IDs, separated by commas, at the prompt. Keep the values out of commits, logs and PRs.
+4. Reload the app and verify owners see **Settings › Administration**; testers separately see **Settings › Testing**.
+   Remove an ID from `OWNER_USER_IDS` to revoke private access on the next API request; reload
    any open Settings screen to refresh its menu. Deleted accounts recreated with the same email need fresh approval.
 
-For local development only, use these same names in the ignored `.dev.vars` file with IDs from your local database,
+For local development only, put `OWNER_USER_IDS` in the ignored `.dev.vars` file with IDs from your local database,
 then restart `npm run dev`. Do not copy production account IDs or credentials into a local fixture.
 
 </details>
@@ -149,6 +150,7 @@ Everything A2B uses is free and needs no key:
 | Train timetables (LRT, MRT, Monorail, BRT, KTM Komuter) | [data.gov.my GTFS](https://developer.data.gov.my/realtime-api/gtfs-static) (Prasarana, KTMB) | Built with `npm run transit` into `src/lib/transit-data.json`, kept in git. Each feed runs to an end date the build prints; rebuild before then. Walks to and from stations use the routing server's walking routes. |
 | Toll plaza and car park details | [OpenStreetMap API](https://wiki.openstreetmap.org/wiki/API) | Looked up once and cached. |
 | Shops and places | [Overture Maps](https://overturemaps.org) | Built into small files the phone searches (`npm run places`). |
+| Places drivers added or fixed | A2B drivers, approved by a tester | Kept in the database; phones download what changed since they last asked. |
 | Roads under construction | [Overture Maps](https://overturemaps.org) (OpenStreetMap roads) | Built with `npm run construction`, kept in git. |
 | Fixed speed cameras (AES, AWAS) | OpenStreetMap, found through Photon | Built with `npm run cameras` into `public/cameras.json`, kept in git. |
 | EV chargers | OpenStreetMap ([Overpass API](https://overpass-api.de)), [Open Charge Map](https://openchargemap.org) (`OCM_KEY` secret, optional), Overture Maps | Kept in the database and refreshed weekly by the nightly job (the first list arrives with its first run after deploying). Open Charge Map's openly licensed chargers (CC BY-SA 4.0) are added when a free key is set (`npx wrangler secret put OCM_KEY`). |
