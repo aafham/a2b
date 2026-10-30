@@ -1,5 +1,60 @@
 # A2B verification record
 
+## Review refresh — 30 October 2026
+
+Current upstream `7ff9dda9114e06e3cfbe4bed87dc9fc99986bea5`. Windows/PowerShell, Node 24.22.1,
+npm 12.2.1, existing locked Wrangler 4.151.3 and Playwright 1.62.1. Fresh detached-main baseline:
+`npm test` exit 0, **191 pass / 0 fail / 0 skip**. New AGENTS.md and current contributor rules read.
+All 59 PRs inventoried; all comments/reviews/inline threads read for #14–#16 and #42–#50.
+
+Each implementation branch below includes that current main. All have `npm test`, changed-JavaScript
+`node --check`, `git diff --check` and `git merge-tree --write-tree upstream/main HEAD` passing
+(exit 0; fork's `origin/main` is not used as the upstream reference). No assertions removed/skipped.
+Counts are independent per branch, not additive; the old combined result below remains historical.
+
+| PR | Reviewed commit | Unit/API pass / fail / skip | Additional evidence |
+|---|---|---|---|
+| #15 | `d7273be` | 195 / 0 / 0 | Existing partial offline regressions; main integration only |
+| #42 | `9c7a0ab` | 192 / 0 / 0 | Real Worker/SQLite component role/revocation tests; local Wrangler full-app boot |
+| #43 | `3f751bf` | 197 / 0 / 0 | Actual local Wrangler D1: migration0015, 1 concurrent winner, 3 fault rollback/retry stages |
+| #44 | `8fc7f34` | 221 / 0 / 0 | GPS/arrival/reroute/sharing regressions; Chrome status component and final-head local Wrangler boot |
+| #45 | `66035ec` | 191 / 0 / 0 | 10 Chromium/WebKit password/DOM component tests, exit0 |
+| #47 | `447c06c` | 213 / 0 / 0 | Chromium/WebKit search component smoke, 2 new approved/hidden-place failure regressions |
+| #48 | `c65b3b0` (code `2bcb8c7`) | 200 / 0 / 0 | 9 lifecycle cases rerun after final fixture-only update; local Wrangler Search→Drive/Walk/Motorbike/Train |
+| #49 | `e6c4a38` | 201 / 0 / 0 | Immediate same-watch tunnel recovery, one-watch/timer bounds; local Wrangler boot |
+| #50 | `f0aeeef` | 193 / 0 / 0 | Graph26 modules, actual installed-SW cold offline app/menu boot, exit0 |
+
+The #44 cross-review found ordinary weak GPS could still be frozen after rerouting through a global
+quality check. Four new regressions failed before correction and pass afterward: ordinary weak
+drive/walk/motorcycle sharing/reroute and current callbacks carrying stale/repeated measurement timestamps.
+Actual callback gaps and active/exhausted/suspended estimates still cannot share or reset their budgets.
+The full-app boot smoke was rerun on final `8fc7f34`; component/VM regression tests provide behavioral
+evidence, not real road/GPS hardware proof. #48's healthy-GPS fixture now supplies the collaborator
+introduced by #44, so future composition does not fail merely on an undefined helper.
+
+Full-app local browser scope: actual app/Worker via Wrangler with isolated local D1, Chromium390×844,
+real MapLibre fixed JS/CSS fixtures and an empty style, mock GPS. Actual guest account/presence endpoints
+ran locally; route/search/transit were synthetic. Public provider traffic blocked, backend provider URLs
+overridden to localhost. #48 journey proves late Drive does not replace Walk and current train reports
+render. #42/#44/#49 checks boot/map/menu only. Zero page exceptions/unexpected local HTTP failures.
+Expected resource errors were recorded for blocked optional Three.js and absent optional place index.
+All local servers stopped afterward. Synthetic screenshots and logs are retained in the workspace:
+`outputs/pr-review/` and `work/review-*-fullapp.log`; per-theme tracked screenshots remain in their PRs.
+
+#50: HTTP cache cleared, old page closed, server stopped, then new page opened offline. All26 local
+modules and both MapLibre assets served by SW, zero page errors/requests reaching the stopped origin.
+Network-only APIs fail offline as expected; optional Three.js is blocked. No permanent-cache/full-offline-routing claim.
+
+Read-only live observation: A2B Beta returned HTTP200, title A2B, map canvas present at390px/1280px,
+document width matched viewport, zero page exceptions/failed requests in this one observed visit.
+No signup, feedback, security probing or routing interaction on production. Web text-fetch was unavailable;
+the browser supplied the actual observation. This does not prove all live user journeys.
+
+No new theme/PR, upstream merge, deployment, remote migration or CLA agreement. Existing same-PR
+checklists and ready/draft controls were preserved; personal CLA replies on #14/#15/#16 remain for Afham.
+Six change-request reviews require the reviewer to re-review; code updates do not self-approve them.
+Current branches are checked individually against main, not claimed as a newly verified all-PR combined build.
+
 ## Baseline — 29 October 2026
 
 - Repository: `thaqif0709/a2b`, upstream main `134045abe40e3fd50f73fb24437c4ef4a2920509`.

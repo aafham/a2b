@@ -7,6 +7,35 @@ provider load tests, secrets, merges or deployments are part of this work.
 
 ## Baseline and architecture
 
+### Current review pass — 30 October 2026
+
+Afham asked to settle the submitted PR reviews before doing anything new. This pass updates only
+#15 and #42–#50; it starts no new feature or PR. Current upstream is `7ff9dda`, with **191 baseline
+tests passing**. AGENTS.md now exists and was read; README, contributor/licence rules and changed code
+were rechecked. All 59 PRs were inventoried, and comments/reviews/inline threads for our 12 PRs were read.
+The live website loaded at 390px and 1280px without page errors or horizontal document overflow.
+
+- #42: private inbox/stats remain explicit owner-ID privileges. The reviewer requested retaining
+  TESTER_EMAILS for demo/capacity/suggestion moderation and dropping TESTER_USER_IDS. This narrower
+  boundary is implemented; unverified-email tester privileges remain a documented limitation of M1-A.
+- #43: migration renumbered to **0015_recovery_attempts.sql**, after main's place suggestions/train reports.
+- #44: ordinary real GPS behavior is preserved; strict recovery checks remain scoped to tunnel/estimate
+  episodes. Estimates still cannot confirm stops/arrival or renew their exhausted budget.
+- #45/#47: conflicts resolved while preserving motorcycle auto-start rules, approved driver places,
+  hidden-place filtering and failure reporting. #58 remains an explicit search overlap.
+- #49: transient GPS errors retain the current watcher; 15-second replacement only before a first position.
+- #15/#48/#50: refreshed against current main; route ownership retains train reports, shell retains
+  suggest.js and advances to v40. #15 prefetch code remains separate from the shell-only contribution.
+- #46: update this register, the inventory and actual verification record. Historical figures below
+  describe the previous batch; current results are in A2B_VERIFICATION.md.
+
+No upstream merge, deployment, remote database change or CLA agreement is performed. The already-open
+PRs were no longer drafts when this review started; their ready/CLA controls are left untouched.
+When these updates are submitted, stop again at owner re-review. Future work still needs Afham's
+instruction and a fresh check of main, all PRs and the website.
+
+### Original baseline — 29 October 2026
+
 - HTML/CSS/JavaScript ES modules in `public/`; no framework or bundler. MapLibre GL JS 4.7.1,
   three.js 0.160.0 loaded on demand, device speech synthesis, service worker/PWA.
 - Cloudflare Worker (`src/worker.js`), D1/SQLite, Wrangler 4.151.3. Node minimum 22.13;
@@ -31,7 +60,7 @@ provider load tests, secrets, merges or deployments are part of this work.
 - Existing tests use Node's test runner and SQLite. No PR CI workflow exists at this baseline.
   Browser testing is being introduced with local component fixtures and mocked API responses.
 
-## PR dependency audit
+## Original PR dependency audit — 29 October 2026
 
 The initial 40 PRs were inventoried, including closed/merged ones; open PR diffs and relevant reviews
 were read. A later refresh found #41 and a substantially revised #11, before starting M2. See
@@ -104,7 +133,7 @@ cost effect, approach and acceptance so a maintainer can reproduce the next step
 | M7-B P2 Product / queued | No reproducible latency/request/long-task baseline yet. | M2/M3; deterministic mock timings only until controlled fixture exists. | Record repeatable first render/search/route requests/watchers/data; no invented Lighthouse or improvement percentages. |
 | M7-C P1 Confirmed / queued | `check-places.mjs` warnings allow missing generated data; freshness/resource checks incomplete. | #11 data architecture pending; transit expiry date is feed metadata, not a live-service promise. | Production readiness checks for generated type/places, construction, camera, GTFS expiry, resources; small local fixtures keep dev viable. Do not deploy against owner's production bindings. |
 
-## Review checkpoint
+## Original review checkpoint — 29 October 2026
 
 | Theme | Branch / current result | Review |
 |---|---|---|
