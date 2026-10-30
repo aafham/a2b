@@ -51,6 +51,7 @@ function app() {
     tripSheet: { set() {} }, local: { get: () => false }, guide: null,
     // GPS quality/estimate behavior is tested by M1; these ownership scenarios assume a fresh real fix.
     isFreshGpsFix: () => true,
+    currentGpsUsable: () => true,
     tunnelEpisode: { active: false, exhausted: false, suspended: false, suspend() { this.suspended = true; } },
     Navigator: class { constructor(r, options) { this.route = r; this.options = options; this.spoken = new Set(); } },
     TrainGuide: class { constructor(trip) { this.trip = trip; } }, rideNow: () => Date.now(), rideTick: () => {},
