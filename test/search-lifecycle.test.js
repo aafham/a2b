@@ -43,7 +43,7 @@ function search() {
     $: node, searchSeq: 0, searchTimer: null, searchTarget: null,
     setTimeout: (callback) => { timers.set(++timer, callback); return timer; }, clearTimeout: (id) => timers.delete(id),
     state: { pos: { lngLat: [101.7, 3.1] } }, navigator: { language: 'en' }, document: { activeElement: null },
-    armBack() {}, showSearching() {}, showSearchHome() {}, renderSearchHome() {}, toast() {},
+    armBack() {}, syncDriverPlaces() {}, showSearching() {}, showSearchHome() {}, renderSearchHome() {}, toast() {},
     closeParking() {}, backToBrowse() {}, mergeResults, matchesWordStarts,
     api: (url) => { const d = deferred(); requests.push({ url, ...d }); return d.promise; },
     searchNearby: (_q, _near, options) => { const d = deferred(); localCalls.push({ options, ...d }); return d.promise; },

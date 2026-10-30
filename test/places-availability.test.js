@@ -76,3 +76,51 @@ test('a category provider failure retains local results and can recover next sea
   assert.deepEqual((await placesOfType('ev', near, options)).map((p) => p.name), ['Local charger', 'Remote charger']);
   assert.equal(limited, 1);
 });
+
+test('approved driver places survive an unavailable index and keep hidden results out after retry', async (t) => {
+  const original = globalThis.fetch;
+  t.after(() => { globalThis.fetch = original; });
+  let online = false, limited = 0;
+  globalThis.fetch = async (url) => {
+    if (!online) return json({}, 503);
+    return url === '/places/index.json' ? json(index) : url === list ? json({ caf: 1 })
+      : json({ p: [row('Cafe Closed'), row('Cafe Local', 101.702)] });
+  };
+  const { setDriverPlaces, searchNearby, mergeResults } = await import('../public/places.js?driver-availability');
+  setDriverPlaces([
+    { name: 'Cafe Approved', lng: 101.701, lat: 3.1, category: 'cafe' },
+    { name: 'Cafe Closed', lng: null, lat: null, hides_name: 'Cafe Closed', hides_lng: 101.7, hides_lat: 3.1 },
+  ]);
+  const options = { onUnavailable: () => limited++ };
+  assert.deepEqual((await searchNearby('cafe', near, options)).map((p) => p.name), ['Cafe Approved']);
+  assert.equal(limited, 1, 'index failure still marks the result as partial');
+  online = true;
+  const found = await searchNearby('cafe', near, options);
+  assert.deepEqual(found.map((p) => p.name), ['Cafe Approved', 'Cafe Local']);
+  assert.deepEqual(mergeResults([{ name: 'Cafe Closed', lng: 101.7, lat: 3.1 }], found, 'cafe', near).map((p) => p.name),
+    ['Cafe Approved', 'Cafe Local'], 'the hidden server copy stays hidden too');
+  assert.equal(limited, 1);
+});
+
+test('driver category places survive server and file failures, retaining hide rules when they recover', async (t) => {
+  const original = globalThis.fetch;
+  t.after(() => { globalThis.fetch = original; });
+  let online = false, limited = 0;
+  globalThis.fetch = async (url) => url === '/places/index.json' ? json(index)
+    : url === list ? json({ '@ev': 1 }) : online ? json({ p: [row('Closed charger')] }) : json({}, 503);
+  const { setDriverPlaces, addTypeSource, placesOfType } = await import('../public/places.js?driver-category-availability');
+  setDriverPlaces([
+    { name: 'Approved charger', lng: 101.701, lat: 3.1, category: 'ev' },
+    { name: 'Closed charger', lng: null, lat: null, hides_name: 'Closed charger', hides_lng: 101.7, hides_lat: 3.1 },
+  ]);
+  addTypeSource('ev', async () => {
+    if (!online) throw new Error('Synthetic provider unavailable');
+    return [row('Closed charger'), row('Remote charger', 101.702)];
+  });
+  const options = { onUnavailable: () => limited++ };
+  assert.deepEqual((await placesOfType('ev', near, options)).map((p) => p.name), ['Approved charger']);
+  assert.equal(limited, 2, 'both failed sources report incomplete coverage');
+  online = true;
+  assert.deepEqual((await placesOfType('ev', near, options)).map((p) => p.name), ['Approved charger', 'Remote charger']);
+  assert.equal(limited, 2);
+});

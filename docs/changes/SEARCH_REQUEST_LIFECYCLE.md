@@ -5,6 +5,28 @@
 Independent branch from upstream `134045abe40e3fd50f73fb24437c4ef4a2920509`, checked on 2026-10-29.
 No M1 changes, framework change, paid provider, production configuration, or deployment is included.
 
+## Review update — 30 October 2026
+
+- Merged upstream `7ff9dda` into this branch for [review #5709613908](https://github.com/thaqif0709/a2b/pull/47#pullrequestreview-5709613908).
+- Preserved upstream's approved driver places, name/distance ranking via `best()`, and `isHidden` filtering
+  of removed or corrected places. Passed `onUnavailable` through the index, category server and file lookups.
+- Updated the search VM fixture for upstream's `syncDriverPlaces()` call. Added two behavioral regressions:
+  approved places survive index/provider failure, and hidden names stay absent after sources recover.
+- `npm test`: exit 0, **213 pass / 0 fail / 0 skip**. `node --check public/app.js`, `node --check public/places.js`
+  and `git diff --check`: exit 0. No assertions or earlier regressions were skipped.
+- Chrome and WebKit local component smoke passed again: stale Enter after Clear/Back, focus, partial results,
+  explicit selection, guest Recent, deduped Enter, genuine empty state and portrait/landscape. Verified the new
+  upstream “Add missing place” button remains. The old exact-text empty-state locator was updated because
+  that button is now inside the status container; the empty-message and button are both asserted. Zero page
+  errors; external requests blocked. This remains component coverage, not a physical-device/full-map test.
+- #41 is now merged with a different scope: approved driver suggestions, **without the Google fallback**.
+  Its prior description below is historical. #51 and #53's subsequent UI/train changes are also preserved.
+- [#58](https://github.com/thaqif0709/a2b/pull/58), reviewed head `1a4951a86100e89c5c4bcd7da6479f348b174c9c`,
+  remains open and changes `searchNearby`/`mergeResults` for malls and addresses. Whichever PR lands second
+  must merge current main again and preserve both ranking and lifecycle/error behavior; no #58 code is copied.
+- The stalled-provider deadline limitation below remains deferred. No new theme, production change or CLA
+  acceptance is included in this review update. Earlier test counts describe the original submission.
+
 ## Problems reproduced
 
 An isolated execution of upstream's actual `runSearch` and `closeScreen` functions showed:
@@ -69,9 +91,9 @@ revision. App/map boot is omitted and external requests are blocked; these are c
 | Only the server error is shown; the successful local result is lost. | The local result remains selectable with a limited-results notice. |
 | ![Before: synthetic provider error hides the local Cafe result](../images/search-lifecycle/before-provider-failure.png) | ![After: synthetic local Cafe result remains with a limited-results notice](../images/search-lifecycle/after-provider-failure.png) |
 
-## Open PR integration notes
+## Historical integration notes — original 29 October submission
 
-Read before implementation; neither PR below is merged or cherry-picked into this branch:
+These were read before the original implementation. See the review update above for their current status:
 
 - [#11](https://github.com/thaqif0709/a2b/pull/11), head `3287e0ba31bd434f099f30a5278fa7f9b8477aee`, now proposes
   merged OpenStreetMap/Overture/Foursquare **static place files**, with only approved additions/removals and

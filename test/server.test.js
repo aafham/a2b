@@ -12,12 +12,13 @@ import { applyTraffic } from '../src/lib/traffic.js';
 import { camerasAlong } from '../src/lib/cameras.js';
 import { parkingQuery } from '../src/lib/parking.js';
 import { cameraBearing } from '../scripts/build-cameras.mjs';
-import { REPORT_TYPES } from '../public/report-types.js';
+import { REPORT_TYPES, TRAIN_REPORT_POINTS } from '../public/report-types.js';
 import { encodePolyline as encode, decodePolyline } from '../public/geo.js';
 
 // ---------- Fake upstream services ----------
 const LINE = Array.from({ length: 21 }, (_, i) => [13.4, 52.5 + 0.00045 * i]); // ~1 km north
 let lastRouteBody = null;
+let lastTomtomMode = null;
 let routingDown = false;
 let construction = null; // a road under construction for the fake Overpass, as [[lng, lat], ...]
 let detourTime = 150;
@@ -48,6 +49,7 @@ globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
   if (u.includes('api.tomtom.com')) {
     tomtomCalls++;
+    lastTomtomMode = new URL(u).searchParams.get('travelMode');
     if (tomtomDown) return Response.json({ error: 'over quota' }, { status: 403 });
     // Follows the route it's given; the full route has a jam over its third quarter.
     const points = JSON.parse(init.body).supportingPoints;
@@ -206,6 +208,13 @@ test('walking routes ask Valhalla for a pedestrian route', () => {
   assert.equal(buildRouteRequest({ from: [1, 2], to: [3, 4] }).costing, 'auto', 'driving stays the default');
 });
 
+test('motorcycle routes ask Valhalla for a motorcycle route, without avoiding tolls', () => {
+  const body = buildRouteRequest({ from: [1, 2], to: [3, 4], travel: 'motorcycle', avoid: { tolls: true, highways: true } });
+  assert.equal(body.costing, 'motorcycle');
+  assert.deepEqual(body.costing_options.motorcycle, { use_tolls: 1, use_highways: 0, use_ferry: 0.5 }, 'tolls are free for them');
+  assert.equal(body.costing_options.auto, undefined);
+});
+
 test('turn lanes keep only junctions with a lane to follow', () => {
   assert.deepEqual(lanes([{ directions: 8, active: 8 }, { directions: 66 }]), [{ d: 8, use: 8 }, { d: 66, use: 0 }]);
   assert.deepEqual(lanes([{ directions: 2, valid: 2 }, { directions: 64, active: 64 }]), [{ d: 2, use: 2 }, { d: 64, use: 64 }]);
@@ -253,6 +262,24 @@ test('repeated wrong passwords are throttled', async () => {
 test('JSON is required for writes (blocks cross-site form posts)', async () => {
   const res = await worker.fetch(new Request('https://a2b.test/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'email=a&password=b' }), env);
   assert.equal(res.status, 415);
+});
+
+test('an unexpected server error reads as a plain apology, not its internals', async () => {
+  const broken = () => {
+    throw new Error('D1_ERROR: table place_suggestions has no column named kind: SQLITE_ERROR');
+  };
+  const DB = new Proxy({}, { get: () => broken });
+  const log = console.error;
+  console.error = () => {};
+  try {
+    const res = await worker.fetch(new Request('https://a2b.test/api/presence', { method: 'POST', headers: { 'x-a2b-device': 'device-unexpected-1' } }), { ...env, DB });
+    assert.equal(res.status, 500);
+    const { error } = await res.json();
+    assert.doesNotMatch(error, /D1_ERROR|SQLITE|column/);
+    assert.match(error, /Something went wrong/);
+  } finally {
+    console.error = log;
+  }
 });
 
 test('profile: home, work and settings', async () => {
@@ -634,6 +661,51 @@ test('feedback: anyone can send it, only the owner can read it, close it and reo
   assert.equal(more.status, 429, 'ten a day per device');
 });
 
+test('place suggestions: drivers with an account send them, testers approve, phones download the approved ones', async () => {
+  const guest = client('suggest-guest-1');
+  assert.equal((await guest('POST', '/api/suggestions', { kind: 'add', name: 'Kedai Ah Seng', lat: 3.1, lng: 101.6 })).status, 401, 'an account is needed');
+  const sam = client('suggest-sam-1');
+  await sam('POST', '/api/auth/signup', { email: 'sam@test.com', password: 'password8', name: 'Sam' });
+  assert.equal((await sam('POST', '/api/suggestions', { kind: 'add', name: 'K', lat: 3.1, lng: 101.6 })).status, 400, 'a name');
+  assert.equal((await sam('POST', '/api/suggestions', { kind: 'add', name: 'Kedai Ah Seng', lat: 52.5, lng: 13.4 })).status, 400, 'in Malaysia');
+  assert.equal((await sam('POST', '/api/suggestions', { kind: 'move', name: 'X', lat: 3.1, lng: 101.6 })).status, 400, 'a fix says which place');
+  assert.equal((await sam('POST', '/api/suggestions', { kind: 'add', name: 'Kedai Ah Seng', category: 'shop', lat: 3.1, lng: 101.6, address: 'Jalan Ipoh', note: 'Opened last month' })).status, 201);
+  assert.equal((await sam('POST', '/api/suggestions', { kind: 'move', name: 'Starbucks', category: 'food', lat: 3.2, lng: 101.5, was: { name: 'Starbucks', lat: 3.21, lng: 101.5 } })).status, 201);
+  assert.equal((await sam('POST', '/api/suggestions', { kind: 'gone', was: { name: 'Shell Kepong', lat: 3.2, lng: 101.63 } })).status, 201);
+
+  const owner = client();
+  await owner('POST', '/api/auth/signup', { email: 'places@test.com', password: 'password9', name: 'Owner' });
+  assert.equal((await owner('GET', '/api/suggestions')).status, 404, 'testers only');
+  env.TESTER_EMAILS = 'places@test.com';
+  try {
+    assert.equal((await sam('GET', '/api/suggestions')).status, 404);
+    const { pending } = (await owner('GET', '/api/suggestions')).body;
+    assert.deepEqual(pending.map((s) => [s.kind, s.name, s.by_name]), [['add', 'Kedai Ah Seng', 'Sam'], ['move', 'Starbucks', 'Sam'], ['gone', 'Shell Kepong', 'Sam']]);
+    const [add, move, gone] = pending;
+    assert.equal((await sam('POST', `/api/suggestions/${add.id}`, { action: 'approve' })).status, 404, 'only testers review');
+    assert.equal((await owner('GET', '/api/driver-places?since=0')).body.places.length, 0, 'nothing until approved');
+
+    await owner('POST', `/api/suggestions/${add.id}`, { action: 'approve', name: 'Kedai Runcit Ah Seng', lat: 3.1001, lng: 101.6001 });
+    await owner('POST', `/api/suggestions/${move.id}`, { action: 'approve' });
+    await owner('POST', `/api/suggestions/${gone.id}`, { action: 'reject' });
+    assert.equal((await owner('POST', `/api/suggestions/${gone.id}`, { action: 'approve' })).status, 404, 'reviewed once');
+
+    const first = (await guest('GET', '/api/driver-places?since=0')).body;
+    assert.deepEqual(first.places.map((p) => [p.name, p.lat, p.hides_name]), [['Kedai Runcit Ah Seng', 3.1001, null], ['Starbucks', 3.2, 'Starbucks']], "with the tester's edits");
+    assert.equal((await guest('GET', `/api/driver-places?since=${first.next}`)).body.places.length, 0, 'nothing new since');
+    const me = (await sam('GET', '/api/me')).body.user;
+    assert.equal(me.points, 20, 'points for each approved one');
+
+    await owner('POST', `/api/suggestions/${add.id}`, { action: 'undo' });
+    const after = (await guest('GET', `/api/driver-places?since=${first.next}`)).body.places;
+    assert.deepEqual(after.map((p) => [p.name, p.removed]), [['Kedai Runcit Ah Seng', 1]], 'taken out: phones are told to drop it');
+    const { reviewed } = (await owner('GET', '/api/suggestions')).body;
+    assert.deepEqual(reviewed.map((s) => s.status).sort(), ['approved', 'rejected', 'undone']);
+  } finally {
+    delete env.TESTER_EMAILS;
+  }
+});
+
 test('an overloaded routing server reads as busy, not as no route', async () => {
   routingDown = true;
   try {
@@ -1005,4 +1077,67 @@ test('trips by train need a spot, a start and a destination', async () => {
     assert.deepEqual([l.stations[0][0], l.stations.at(-1)[0]], [l.from.name, l.to.name]);
     assert.ok(l.stations.every(([name, lat, lng, t], i) => typeof name === 'string' && Math.abs(lat) < 90 && Math.abs(lng) < 180 && (!i || t > l.stations[i - 1][3])));
   }
+});
+
+test('motorcycle routes keep closures, limits and cameras, but have no tolls to pay, and are timed as motorcycles', async () => {
+  env.TOMTOM_KEY = 'test-key';
+  try {
+    const rider = client();
+    const car = await rider('POST', '/api/route', { from: [13.4, 52.5], to: [13.4, 52.509] });
+    assert.ok(car.body.routes.some((r) => r.tolls.length), 'the car route passes a plaza');
+    assert.equal(lastTomtomMode, 'car');
+    const r = await rider('POST', '/api/route', { from: [13.4, 52.5], to: [13.4, 52.509], travel: 'motorcycle' });
+    assert.equal(r.status, 200);
+    assert.equal(lastRouteBody.costing, 'motorcycle');
+    assert.equal(lastTomtomMode, 'motorcycle', 'live traffic for a motorcycle');
+    const full = r.body.routes.find((x) => x.coords.length === 21);
+    assert.deepEqual([full.travel, full.tolls, full.toll, full.toll_free_bike], ['motorcycle', [], false, true]);
+    assert.ok(full.limits, 'speed limits still apply');
+    assert.ok(Array.isArray(full.cameras), 'cameras still checked');
+  } finally {
+    delete env.TOMTOM_KEY;
+  }
+});
+
+test('train reports: riders report on a line, others see them on it and on trips by train, and clear them', async () => {
+  const KJ = 'prasarana:KJ';
+  const [ann, ben, dan] = [client(), client(), client()];
+  for (const [c, name] of [[ann, 'Ann'], [ben, 'Ben'], [dan, 'Dan']]) await c('POST', '/api/auth/signup', { email: `${name.toLowerCase()}-rides@test.com`, password: 'password4', name });
+  assert.equal((await client()('POST', '/api/train-reports', { type: 'delay', line: KJ })).status, 401);
+  assert.equal((await ann('POST', '/api/train-reports', { type: 'jam', line: KJ })).status, 400, 'not a train report');
+  assert.equal((await ann('POST', '/api/train-reports', { type: 'delay', line: 'prasarana:XX' })).status, 400, 'no such line');
+  assert.equal((await ann('POST', '/api/train-reports', { type: 'delay', line: KJ, station: 'Bukit Bintang' })).status, 400, 'not on this line');
+  assert.equal((await ann('POST', '/api/train-reports', { type: 'closed', line: KJ })).status, 400, 'which station?');
+
+  const made = await ann('POST', '/api/train-reports', { type: 'delay', line: KJ, station: 'Pasar Seni' });
+  assert.equal(made.status, 201);
+  assert.equal(made.body.points, TRAIN_REPORT_POINTS);
+  const id = made.body.report.id;
+  assert.deepEqual([made.body.report.line, made.body.report.station, made.body.report.mine], [KJ, 'Pasar Seni', true]);
+  assert.equal((await ann('POST', '/api/train-reports', { type: 'crowded', line: KJ })).status, 429, 'one a minute');
+
+  // On that line, not on another, and never among the road reports.
+  assert.equal((await client()('GET', `/api/train-reports?lines=${KJ},prasarana:AG`)).body.reports.length, 1);
+  assert.equal((await client()('GET', '/api/train-reports?lines=prasarana:AG')).body.reports.length, 0);
+  assert.equal((await client()('GET', '/api/reports?bbox=101.6,3.0,101.8,3.2')).body.reports.length, 0);
+
+  // Ben reports the same: it confirms Ann's, and keeps it longer.
+  const dup = await ben('POST', '/api/train-reports', { type: 'delay', line: KJ, station: 'Pasar Seni' });
+  assert.equal(dup.body.merged, true);
+  assert.equal(dup.body.report.id, id);
+  assert.equal(dup.body.report.still, 1);
+  assert.ok(dup.body.report.expires_at > made.body.report.expires_at);
+
+  // A trip by train on the Kelana Jaya Line says so.
+  const trip = await client()('POST', '/api/transit', { from: [101.6865, 3.134], to: [101.7116, 3.1579] });
+  assert.ok(trip.body.trips.some((t) => t.legs.some((l) => l.line?.id === KJ)));
+  assert.deepEqual(trip.body.reports.map((r) => r.id), [id]);
+
+  // Cleared: Ben changes his mind, Dan agrees, and two "cleared" outweigh no "still happening".
+  let v = await ben('POST', `/api/train-reports/${id}/vote`, { vote: 'gone' });
+  assert.deepEqual([v.body.report.still, v.body.report.gone, v.body.removed], [0, 1, false]);
+  v = await dan('POST', `/api/train-reports/${id}/vote`, { vote: 'gone' });
+  assert.equal(v.body.removed, true);
+  assert.equal((await client()('GET', `/api/train-reports?lines=${KJ}`)).body.reports.length, 0);
+  assert.equal((await dan('POST', `/api/train-reports/${id}/vote`, { vote: 'still' })).status, 404);
 });
